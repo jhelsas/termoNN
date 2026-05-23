@@ -10,34 +10,72 @@ from src.utils import generate_domain_data, generate_boundary_data, set_seed, ge
 # Suppress benign CUDA/cuBLAS context warnings
 warnings.filterwarnings("ignore", message="Attempting to run cuBLAS")
 
-def train(epochs: int = 3000, lr: float = 0.001) -> torch.nn.Module:
-    """Trains the PINN model."""
+def train(adam_epochs: int = 2000, lbfgs_epochs: int = 500, lr: float = 0.001) -> torch.nn.Module:
+    """
+    Trains the PINN model using a two-stage approach:
+    1. Adam for global exploration.
+    2. L-BFGS for fine-tuning and 'snapping' to the physics solution.
+    """
     set_seed(42)
     device = get_device()
     print(f"Training on device: {device}")
     
     model = PINN().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
     
-    # Generate data
-    x_domain, y_domain = generate_domain_data(2000, device=device)
-    x_bc, y_bc, u_bc = generate_boundary_data(400, device=device)
+    # Stage 1: Adam
+    optimizer_adam = optim.Adam(model.parameters(), lr=lr)
     
-    for epoch in range(epochs):
-        optimizer.zero_grad()
+    # Hyperparameters
+    lambda_bc = 10.0 # Weight for boundary condition loss
+    
+    print("--- Stage 1: Adam Optimization ---")
+    for epoch in range(adam_epochs):
+        # Adaptive Resampling: Sampling new collocation points frequently 
+        # improves generalization and prevents overfitting to a specific set of points.
+        x_domain, y_domain = generate_domain_data(2000, device=device)
+        x_bc, y_bc, u_bc = generate_boundary_data(400, device=device)
         
+        optimizer_adam.zero_grad()
         loss_pde = laplace_loss(model, x_domain, y_domain)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
-        
-        # Hyperparameter lambda=10 for BC importance
-        total_loss = loss_pde + 10 * loss_bc 
+        total_loss = loss_pde + lambda_bc * loss_bc
         
         total_loss.backward()
-        optimizer.step()
+        optimizer_adam.step()
         
         if epoch % 500 == 0:
-            print(f"Epoch {epoch:4d} | Loss: {total_loss.item():.6f} "
+            print(f"Adam Epoch {epoch:4d} | Loss: {total_loss.item():.6f} "
                   f"(PDE: {loss_pde.item():.6f}, BC: {loss_bc.item():.6f})")
+
+    # Stage 2: L-BFGS (Fine-tuning)
+    # L-BFGS is a second-order optimizer that is much more efficient at finding 
+    # the exact minimum in 'stiff' PINN landscapes.
+    print("--- Stage 2: L-BFGS Fine-tuning ---")
+    optimizer_lbfgs = optim.LBFGS(
+        model.parameters(), 
+        lr=1, 
+        max_iter=20, 
+        tolerance_grad=1e-7, 
+        history_size=50,
+        line_search_fn="strong_wolfe"
+    )
+
+    # For L-BFGS, we typically use a static set of points for the closure
+    x_domain, y_domain = generate_domain_data(3000, device=device)
+    x_bc, y_bc, u_bc = generate_boundary_data(600, device=device)
+
+    def closure():
+        optimizer_lbfgs.zero_grad()
+        loss_pde = laplace_loss(model, x_domain, y_domain)
+        loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
+        total_loss = loss_pde + lambda_bc * loss_bc
+        total_loss.backward()
+        return total_loss
+
+    for epoch in range(lbfgs_epochs):
+        loss = optimizer_lbfgs.step(closure)
+        if epoch % 100 == 0:
+            print(f"L-BFGS Epoch {epoch:3d} | Loss: {loss.item():.8f}")
             
     return model
 

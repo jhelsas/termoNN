@@ -121,7 +121,10 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png') -
     plt.close()
     print(f"Result saved to {filename}")
 
-if __name__ == "__main__":
+def solve_koch_snowflake_example():
+    """
+    Example: Solving Laplace Equation on a Koch Snowflake fractal.
+    """
     from src.utils import generate_koch_snowflake, PolygonDomain
     
     print("--- Koch Snowflake Harmonic Example ---")
@@ -136,3 +139,42 @@ if __name__ == "__main__":
     print("\n--- Scenario: harmonic ---")
     model = train(domain=domain, bc_fn=bc_harmonic, adam_epochs=1200, lbfgs_epochs=200)
     plot_results(model, domain=domain, filename='snowflake_harmonic.png')
+
+def solve_nested_snowflakes_example():
+    """
+    Example: Solving Laplace Equation in a domain bounded by two Koch Snowflakes.
+    The outer snowflake is at u=0, and an inner snowflake hole is at u=1.
+    """
+    from src.utils import generate_koch_snowflake, PolygonDomain
+    
+    print("\n--- Nested Koch Snowflakes Example ---")
+    
+    # 1. Generate Geometry
+    # Outer snowflake (Order 3)
+    outer_vertices = generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5))
+    # Inner snowflake hole (Order 2, smaller)
+    inner_vertices = generate_koch_snowflake(order=2, scale=0.4, center=(0.5, 0.5))
+    
+    domain = PolygonDomain(outer_vertices, holes=[inner_vertices])
+    
+    # 2. Define Boundary Conditions
+    # Using radial distance to distinguish between outer and inner boundaries
+    def bc_nested(x, y):
+        u = torch.zeros((x.shape[0], 1), device=x.device)
+        dist = torch.sqrt((x - 0.5)**2 + (y - 0.5)**2)
+        # Inner hole boundary points are closer to the center
+        u[dist < 0.4] = 1.0 # Set inner hole to "hot"
+        return u
+
+    # 3. Train
+    print("Training on Nested Snowflake domain (Outer=0, Inner=1)...")
+    model = train(domain=domain, bc_fn=bc_nested, adam_epochs=1500, lbfgs_epochs=400)
+    
+    # 4. Visualize
+    plot_results(model, domain=domain, filename='nested_snowflakes.png')
+    print("Nested fractal solution saved to nested_snowflakes.png")
+
+if __name__ == "__main__":
+    # choose one of the examples to run
+    # solve_koch_snowflake_example()
+    solve_nested_snowflakes_example()

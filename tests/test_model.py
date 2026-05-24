@@ -1,0 +1,67 @@
+import torch
+from src.model import PINN
+from tests.base_test import PINNTestCase
+
+class TestModel(PINNTestCase):
+    def test_model_output_shape(self):
+        """Verifies the MLP returns the correct tensor shape (Batch x 1)."""
+        model = PINN(input_dim=2, output_dim=1).to(self.device)
+        test_input = torch.randn(10, 2, device=self.device)
+        output = model(test_input)
+        self.assertEqual(output.shape, (10, 1))
+
+    def test_activation_differentiability(self):
+        """Ensures the model activation allows non-zero second derivatives."""
+        model = PINN().to(self.device)
+        x = torch.linspace(0, 1, 10, requires_grad=True, device=self.device)
+        y = torch.linspace(0, 1, 10, requires_grad=True, device=self.device)
+        coords = torch.stack([x, y], dim=1)
+        u = model(coords)
+        u_x = torch.autograd.grad(u.sum(), coords, create_graph=True)[0][:, 0]
+        u_xx = torch.autograd.grad(u_x.sum(), coords, create_graph=True)[0][:, 0]
+        
+        self.assertFalse(torch.all(u_xx == 0), "Second derivative is zero. Activation may be non-smooth.")
+
+    def test_model_serialization(self):
+        """Ensures the model can be saved and loaded with identical outputs."""
+        model = PINN().to(self.device)
+        model.eval()
+        x = torch.randn(5, 2, device=self.device)
+        
+        with torch.no_grad():
+            original_output = model(x)
+            
+        state = model.state_dict()
+        new_model = PINN().to(self.device)
+        new_model.load_state_dict(state)
+        new_model.eval()
+        
+        with torch.no_grad():
+            new_output = new_model(x)
+            
+        self.assertTensorsEqual(original_output, new_output)
+
+    def test_initialization_sanity(self):
+        """Checks that weights are not initialized to zero."""
+        model = PINN().to(self.device)
+        for name, param in model.named_parameters():
+            if 'weight' in name:
+                self.assertFalse(torch.all(param == 0), f"Layer {name} is all zeros.")
+
+    def test_gradient_finiteness(self):
+        """Ensures first derivatives are finite and not NaN."""
+        model = PINN().to(self.device)
+        x = torch.rand(10, 2, requires_grad=True, device=self.device)
+        u = model(x)
+        grads = torch.autograd.grad(u.sum(), x)[0]
+        self.assertTrue(torch.isfinite(grads).all())
+
+    def test_parameter_scaling(self):
+        """Verifies that num_layers and hidden_dim are respected."""
+        hidden_dim = 33
+        num_layers = 5
+        model = PINN(hidden_dim=hidden_dim, num_layers=num_layers).to(self.device)
+        self.assertEqual(model.net[0].weight.shape[0], hidden_dim)
+        # 2 modules per layer (Linear+Tanh) except last
+        expected_modules = 2 * (num_layers - 1) + 1
+        self.assertEqual(len(model.net), expected_modules)

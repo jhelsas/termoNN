@@ -1,0 +1,83 @@
+import torch
+import torch.nn as nn
+from src.physics import laplace_loss, boundary_loss
+from src.utils import generate_domain_data
+from tests.base_test import PINNTestCase
+
+class TestPhysics(PINNTestCase):
+    def test_laplace_loss_zeros(self):
+        """Physics Validation: Linear functions must have zero Laplace loss."""
+        model = nn.Linear(2, 1).to(self.device)
+        with torch.no_grad():
+            model.weight.fill_(1.0)
+            model.bias.fill_(0.0)
+        
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 0.0, places=5)
+
+    def test_laplace_loss_non_zero(self):
+        """Physics Validation: Non-Laplacian functions must have non-zero loss."""
+        class QuadModel(nn.Module):
+            def forward(self, x):
+                return (x[:, 0]**2 + x[:, 1]**2).unsqueeze(1)
+        
+        model = QuadModel().to(self.device)
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 16.0, places=4)
+
+    def test_boundary_loss_perfect_fit(self):
+        """Verifies BC loss is zero when the model matches target values."""
+        model = lambda x: torch.ones((x.shape[0], 1), device=self.device)
+        x_bc = torch.zeros(10, device=self.device)
+        y_bc = torch.zeros(10, device=self.device)
+        u_bc = torch.ones((10, 1), device=self.device)
+        loss = boundary_loss(model, x_bc, y_bc, u_bc)
+        self.assertEqual(loss.item(), 0.0)
+
+    def test_laplace_harmonic_function(self):
+        """Physics Validation: Analytical harmonic function must have 0 loss."""
+        class HarmonicModel(nn.Module):
+            def forward(self, x):
+                return (torch.sin(x[:, 0]) * torch.cosh(x[:, 1])).unsqueeze(1)
+        
+        model = HarmonicModel().to(self.device)
+        x = torch.linspace(0, 0.5, 20, device=self.device)
+        y = torch.linspace(0, 0.5, 20, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 0.0, places=5)
+
+    def test_hessian_independence(self):
+        """Verifies that u_xx and u_yy are calculated from correct dimensions."""
+        class XYModel(nn.Module):
+            def forward(self, x):
+                return (x[:, 0]**2).unsqueeze(1) # u_xx=2, u_yy=0
+        
+        model = XYModel().to(self.device)
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 4.0, places=5)
+
+    def test_physics_batch_consistency(self):
+        """Ensures the loss is the mean of individual point losses."""
+        class QuadModel(nn.Module):
+            def forward(self, x): return (x[:, 0]**2).unsqueeze(1)
+        
+        model = QuadModel().to(self.device)
+        x = torch.tensor([0.1, 0.5], device=self.device)
+        y = torch.tensor([0.1, 0.5], device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertEqual(loss.item(), 4.0)
+
+    def test_numerical_stability_small_values(self):
+        """Checks for stability with small input coordinates."""
+        from src.model import PINN
+        model = PINN().to(self.device)
+        x = torch.full((10,), 1e-6, device=self.device)
+        y = torch.full((10,), 1e-6, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertTrue(torch.isfinite(loss))

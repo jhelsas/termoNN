@@ -1,6 +1,6 @@
 import torch
-from src.model import PINN
-from src.physics import laplace_loss
+from src.pinn.model import PINN
+from src.pinn.physics import laplace_loss
 from tests.base_test import PINNTestCase
 
 class TestModel(PINNTestCase):
@@ -119,7 +119,7 @@ class TestModel(PINNTestCase):
         model_tanh = PINN(activation='tanh')
         self.assertTrue(any(isinstance(m, torch.nn.Tanh) for m in model_tanh.net))
         
-        from src.model import Sine
+        from src.pinn.model import Sine
         model_sine = PINN(activation='sine')
         self.assertTrue(any(isinstance(m, Sine) for m in model_sine.net))
 

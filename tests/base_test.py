@@ -2,7 +2,7 @@ import torch
 import unittest
 import random
 import numpy as np
-from src.utils import get_device, set_seed
+from src.core.data import get_device, set_seed
 
 class PINNTestCase(unittest.TestCase):
     """

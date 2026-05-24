@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from src.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
-from src.utils import generate_domain_data
+from src.pinn.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
+from src.core.data import generate_domain_data
 from tests.base_test import PINNTestCase
 
 class TestPhysics(PINNTestCase):
@@ -100,7 +100,7 @@ class TestPhysics(PINNTestCase):
 
     def test_numerical_stability_small_values(self):
         """Checks for stability with small input coordinates."""
-        from src.model import PINN
+        from src.pinn.model import PINN
         model = PINN().to(self.device)
         x = torch.full((10,), 1e-6, device=self.device)
         y = torch.full((10,), 1e-6, device=self.device)
@@ -216,7 +216,7 @@ class TestPhysics(PINNTestCase):
 
     def test_poisson_with_multi_frequency_model(self):
         """Physics/Model Integration: Verifies gradients work with multi-freq SIREN."""
-        from src.model import PINN
+        from src.pinn.model import PINN
         model = PINN(activation='sine', omega=(1, 50)).to(self.device)
         x = torch.rand(10, device=self.device)
         y = torch.rand(10, device=self.device)

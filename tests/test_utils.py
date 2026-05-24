@@ -1,5 +1,6 @@
 import torch
-from src.utils import generate_domain_data, generate_boundary_data, set_seed, PolygonDomain
+from src.core.data import generate_domain_data, generate_boundary_data, set_seed
+from src.core.geometry import PolygonDomain
 from tests.base_test import PINNTestCase
 import numpy as np
 

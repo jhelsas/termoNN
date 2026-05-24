@@ -1,6 +1,7 @@
 import torch
 import numpy as np
-from src.utils import PolygonDomain, generate_domain_data, generate_boundary_data
+from src.core.geometry import PolygonDomain
+from src.core.data import generate_domain_data, generate_boundary_data
 from tests.base_test import PINNTestCase
 
 class TestGeometry(PINNTestCase):
@@ -75,7 +76,7 @@ class TestGeometry(PINNTestCase):
 
     def test_koch_snowflake_generation(self):
         """Verifies Koch Snowflake vertices are generated and closed."""
-        from src.utils import generate_koch_snowflake
+        from src.core.geometry import generate_koch_snowflake
         order = 2
         vertices = generate_koch_snowflake(order=order, scale=1.0)
         
@@ -92,7 +93,7 @@ class TestGeometry(PINNTestCase):
 
     def test_koch_snowflake_domain(self):
         """Verifies we can sample inside a Koch Snowflake."""
-        from src.utils import generate_koch_snowflake
+        from src.core.geometry import generate_koch_snowflake
         vertices = generate_koch_snowflake(order=2)
         domain = PolygonDomain(vertices)
         
@@ -140,6 +141,6 @@ class TestGeometry(PINNTestCase):
             return torch.zeros_like(x).unsqueeze(1)
             
         # These should run without TypeError
-        from src.utils import generate_boundary_data
+        from src.core.data import generate_boundary_data
         _ = generate_boundary_data(10, domain=domain, bc_fn=bc_with_ids)
         _ = generate_boundary_data(10, domain=domain, bc_fn=bc_without_ids)

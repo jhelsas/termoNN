@@ -1,8 +1,9 @@
 import torch
 import os
-from src.model import PINN
-from src.utils import generate_domain_data, generate_boundary_data, PolygonDomain
-from src.physics import laplace_loss, boundary_loss
+from src.pinn.model import PINN
+from src.core.data import generate_domain_data, generate_boundary_data
+from src.core.geometry import PolygonDomain
+from src.pinn.physics import laplace_loss, boundary_loss
 from main import plot_results, train
 from tests.base_test import PINNTestCase
 import numpy as np

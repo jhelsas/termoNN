@@ -3,9 +3,10 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import numpy as np
 import warnings
-from src.model import PINN
-from src.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
-from src.utils import generate_domain_data, generate_boundary_data, set_seed, get_device, PolygonDomain
+from src.pinn.model import PINN
+from src.pinn.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
+from src.core.data import generate_domain_data, generate_boundary_data, set_seed, get_device
+from src.core.geometry import PolygonDomain, generate_koch_snowflake
 
 # Suppress benign CUDA/cuBLAS context warnings
 warnings.filterwarnings("ignore", message="Attempting to run cuBLAS")
@@ -216,7 +217,7 @@ def solve_koch_snowflake_example():
     """
     Example: Solving Laplace Equation on a Koch Snowflake fractal.
     """
-    from src.utils import generate_koch_snowflake, PolygonDomain
+    from src.core.geometry import generate_koch_snowflake, PolygonDomain
     
     print("--- Koch Snowflake Harmonic Example ---")
     vertices = generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5))
@@ -235,7 +236,7 @@ def solve_nested_snowflakes_example(config=None):
     """
     Example: Solving Laplace Equation in a domain bounded by two Koch Snowflakes.
     """
-    from src.utils import generate_koch_snowflake, PolygonDomain
+    from src.core.geometry import generate_koch_snowflake, PolygonDomain
     
     print("\n--- Nested Koch Snowflakes Example ---")
     

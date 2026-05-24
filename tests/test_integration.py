@@ -25,8 +25,9 @@ class TestIntegration(PINNTestCase):
 
     def test_full_training_cycle_adam(self):
         """Ensures that a short Adam training cycle decreases the loss."""
-        # Note: train() already handles seeds and device internally
-        model = train(adam_epochs=5, lbfgs_epochs=0, lr=0.01)
+        # Note: train() now uses a config dictionary
+        config = {"adam_epochs": 5, "lbfgs_epochs": 0, "adam_lr": 0.01}
+        model = train(config=config)
         self.assertEqual(next(model.parameters()).device.type, self.device.type)
 
     def test_lbfgs_closure_integration(self):
@@ -65,7 +66,8 @@ class TestIntegration(PINNTestCase):
             return torch.zeros((x.shape[0], 1), device=x.device)
             
         # Run very short training
-        model = train(domain=domain, bc_fn=zero_bc, adam_epochs=2, lbfgs_epochs=1)
+        config = {"adam_epochs": 2, "lbfgs_epochs": 1}
+        model = train(domain=domain, bc_fn=zero_bc, config=config)
         self.assertIsNotNone(model)
         
         # Verify plotting with custom domain

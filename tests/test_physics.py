@@ -213,3 +213,17 @@ class TestPhysics(PINNTestCase):
         
         self.assertTrue(torch.isfinite(l1))
         self.assertTrue(torch.isfinite(l2))
+
+    def test_poisson_with_multi_frequency_model(self):
+        """Physics/Model Integration: Verifies gradients work with multi-freq SIREN."""
+        from src.model import PINN
+        model = PINN(activation='sine', omega=(1, 50)).to(self.device)
+        x = torch.rand(10, device=self.device)
+        y = torch.rand(10, device=self.device)
+        
+        loss = poisson_loss(model, x, y)
+        loss.backward()
+        
+        # Check if gradients were populated
+        has_grads = any(p.grad is not None for p in model.parameters())
+        self.assertTrue(has_grads)

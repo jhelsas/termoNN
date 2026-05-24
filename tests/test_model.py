@@ -130,3 +130,26 @@ class TestModel(PINNTestCase):
         w_max = model.net[0].weight.abs().max().item()
         # Should be roughly 1/input_dim = 0.1
         self.assertLess(w_max, 1.1 / input_dim)
+
+    def test_multi_frequency_distribution(self):
+        """Architecture Validation: Checks if frequencies are distributed in Sine modules."""
+        hidden_dim = 10
+        model = PINN(hidden_dim=hidden_dim, activation='sine', omega=(1.0, 10.0))
+        
+        # Check first Sine module (index 1 in net Sequential)
+        sine_module = model.net[1]
+        unique_freqs = torch.unique(sine_module.omega)
+        self.assertEqual(len(unique_freqs), hidden_dim)
+        self.assertAlmostEqual(unique_freqs.min().item(), 1.0)
+        self.assertAlmostEqual(unique_freqs.max().item(), 10.0)
+
+    def test_omega_buffer_device_transfer(self):
+        """Pair-wise Validation: Ensures omega buffers follow model device movement."""
+        model = PINN(activation='sine', omega=(5, 15))
+        # Move to CPU explicitly (already there, but tests the mechanism)
+        model.to('cpu')
+        self.assertEqual(model.net[1].omega.device.type, 'cpu')
+        
+        if torch.cuda.is_available():
+            model.to('cuda')
+            self.assertEqual(model.net[1].omega.device.type, 'cuda')

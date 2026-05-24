@@ -43,10 +43,13 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         if key not in cfg:
             raise KeyError(f"Missing required config key: {key}")
     
+    # Support for multi-frequency log printing
+    omega_desc = str(cfg.get('omega', 30.0))
+    
     print(f"--- PINN Configuration ---")
     print(f"  - Model: {cfg['num_layers']} layers, {cfg['hidden_dim']} units, {cfg['activation']} activation")
-    print(f"  - Weighting: lambda_bc={cfg['lambda_bc']}")
-    print(f"  - Resolution: Adam({cfg['adam_points_domain']}/{cfg['adam_points_bc']}), L-BFGS({cfg['lbfgs_points_domain']}/{cfg['lbfgs_points_bc']})")
+    print(f"  - Omega: {omega_desc}")
+    print(f"  - Weighting: lambda_bc={cfg['lambda_bc']}, lambda_range={cfg.get('lambda_range', 0.0)}")
 
     set_seed(cfg["seed"])
     device = get_device()
@@ -258,20 +261,21 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # Optimal SIREN config for complex nested fractals
+    # Multi-Frequency "Fourier" configuration:
+    # Captures global heat flow (low omega) and fractal detail (high omega)
     config = {
-        "num_layers": 6,             # Increased depth
-        "hidden_dim": 128,           # Doubled width for high-capacity
+        "num_layers": 6,             
+        "hidden_dim": 128,           
         "activation": "sine",
-        "omega": 15.0,               # Mid-range frequency balance
-        "adam_epochs": 3000,         
-        "lbfgs_epochs": 1500,        
-        "adam_points_domain": 3000, 
-        "adam_points_bc": 2000,      
-        "lbfgs_points_domain": 5000, 
-        "lbfgs_points_bc": 3000,
-        "lambda_bc": 1000.0,         # Massive BC pressure
-        "lambda_range": 1000.0,      # Massive range pressure
+        "omega": (2.0, 40.0),        # Multi-frequency range (min, max)
+        "adam_epochs": 2000,         
+        "lbfgs_epochs": 1000,        
+        "adam_points_domain": 2000, 
+        "adam_points_bc": 1000,      
+        "lbfgs_points_domain": 4000, 
+        "lbfgs_points_bc": 2000,
+        "lambda_bc": 100.0,          
+        "lambda_range": 20.0,        
     }
 
     solve_nested_snowflakes_example(config=config)

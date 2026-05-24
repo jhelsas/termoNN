@@ -6,7 +6,7 @@ from tests.base_test import PINNTestCase
 
 class TestPhysics(PINNTestCase):
     def test_laplace_loss_zeros(self):
-        """Physics Validation: Linear functions must have zero Laplace loss."""
+        """Physics Validation: Linear functions (u=ax+by+c) must have zero Laplace loss."""
         model = nn.Linear(2, 1).to(self.device)
         with torch.no_grad():
             model.weight.fill_(1.0)
@@ -17,8 +17,20 @@ class TestPhysics(PINNTestCase):
         loss = laplace_loss(model, x, y)
         self.assertAlmostEqual(loss.item(), 0.0, places=5)
 
-    def test_laplace_loss_non_zero(self):
-        """Physics Validation: Non-Laplacian functions must have non-zero loss."""
+    def test_laplace_loss_linear_sloped(self):
+        """Physics Validation: u = 3x + 4y + 5 must have zero Laplace loss."""
+        class SlopedLinearModel(nn.Module):
+            def forward(self, x):
+                return (3 * x[:, 0] + 4 * x[:, 1] + 5).unsqueeze(1)
+        
+        model = SlopedLinearModel().to(self.device)
+        x = torch.linspace(0, 1, 15, device=self.device)
+        y = torch.linspace(0, 1, 15, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 0.0, places=6)
+
+    def test_laplace_loss_quad_identity(self):
+        """Physics Validation: u = x^2 + y^2 => u_xx + u_yy = 2 + 2 = 4. Loss = 4^2 = 16."""
         class QuadModel(nn.Module):
             def forward(self, x):
                 return (x[:, 0]**2 + x[:, 1]**2).unsqueeze(1)
@@ -28,6 +40,18 @@ class TestPhysics(PINNTestCase):
         y = torch.linspace(0, 1, 10, device=self.device)
         loss = laplace_loss(model, x, y)
         self.assertAlmostEqual(loss.item(), 16.0, places=4)
+
+    def test_laplace_loss_saddle(self):
+        """Physics Validation: u = x^2 - y^2 is harmonic => u_xx + u_yy = 2 - 2 = 0."""
+        class SaddleModel(nn.Module):
+            def forward(self, x):
+                return (x[:, 0]**2 - x[:, 1]**2).unsqueeze(1)
+        
+        model = SaddleModel().to(self.device)
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 0.0, places=6)
 
     def test_boundary_loss_perfect_fit(self):
         """Verifies BC loss is zero when the model matches target values."""

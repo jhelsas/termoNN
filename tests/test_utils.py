@@ -9,6 +9,21 @@ class TestUtils(PINNTestCase):
         self.assertTrue(torch.all(x >= 0) and torch.all(x <= 1))
         self.assertTrue(torch.all(y >= 0) and torch.all(y <= 1))
 
+    def test_domain_sampling_count(self):
+        """Ensures the correct number of domain points are generated."""
+        n = 123
+        x, y = generate_domain_data(n, device=self.device)
+        self.assertEqual(len(x), n)
+        self.assertEqual(len(y), n)
+
+    def test_boundary_sampling_count(self):
+        """Ensures the correct number of boundary points are generated."""
+        n = 400
+        x, y, u = generate_boundary_data(n, device=self.device)
+        self.assertEqual(len(x), n)
+        self.assertEqual(len(y), n)
+        self.assertEqual(u.shape, (n, 1))
+
     def test_boundary_sampling(self):
         """Verifies boundary points are actually on the edges."""
         x_bc, y_bc, _ = generate_boundary_data(100, device=self.device)

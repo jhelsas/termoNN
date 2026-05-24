@@ -28,21 +28,25 @@ def laplace_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> to
     # Calculate second derivatives (Hessian diagonal)
     # We use allow_unused=True because for some model architectures (like linear models used in tests),
     # the second derivative is mathematically zero and may not have a gradient path in the autograd graph.
-    u_xx_grads = torch.autograd.grad(
-        u_x, coords, 
-        grad_outputs=torch.ones_like(u_x), 
-        create_graph=True, 
-        allow_unused=True
-    )[0]
-    u_xx = u_xx_grads[:, 0] if u_xx_grads is not None else torch.zeros_like(u_x)
+    u_xx = torch.zeros_like(u_x)
+    if u_x.requires_grad:
+        u_xx_grads = torch.autograd.grad(
+            u_x, coords, 
+            grad_outputs=torch.ones_like(u_x), 
+            create_graph=True, 
+            allow_unused=True
+        )[0]
+        u_xx = u_xx_grads[:, 0] if u_xx_grads is not None else torch.zeros_like(u_x)
     
-    u_yy_grads = torch.autograd.grad(
-        u_y, coords, 
-        grad_outputs=torch.ones_like(u_y), 
-        create_graph=True, 
-        allow_unused=True
-    )[0]
-    u_yy = u_yy_grads[:, 1] if u_yy_grads is not None else torch.zeros_like(u_y)
+    u_yy = torch.zeros_like(u_y)
+    if u_y.requires_grad:
+        u_yy_grads = torch.autograd.grad(
+            u_y, coords, 
+            grad_outputs=torch.ones_like(u_y), 
+            create_graph=True, 
+            allow_unused=True
+        )[0]
+        u_yy = u_yy_grads[:, 1] if u_yy_grads is not None else torch.zeros_like(u_y)
     
     return torch.mean((u_xx + u_yy)**2)
 

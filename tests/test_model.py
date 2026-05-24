@@ -65,3 +65,30 @@ class TestModel(PINNTestCase):
         # 2 modules per layer (Linear+Tanh) except last
         expected_modules = 2 * (num_layers - 1) + 1
         self.assertEqual(len(model.net), expected_modules)
+
+    def test_model_device_movement(self):
+        """Verifies the model can be moved between devices (if available)."""
+        model = PINN().to(self.device)
+        self.assertEqual(next(model.parameters()).device.type, self.device.type)
+        
+        cpu_device = torch.device("cpu")
+        model.to(cpu_device)
+        self.assertEqual(next(model.parameters()).device.type, "cpu")
+
+    def test_forward_pass_different_batch_sizes(self):
+        """Ensures the model handles various batch sizes correctly."""
+        model = PINN().to(self.device)
+        for batch_size in [1, 16, 128]:
+            x = torch.randn(batch_size, 2, device=self.device)
+            output = model(x)
+            self.assertEqual(output.shape, (batch_size, 1))
+
+    def test_eval_mode_consistency(self):
+        """Verifies that model(x) is deterministic in eval mode."""
+        model = PINN().to(self.device)
+        model.eval()
+        x = torch.randn(10, 2, device=self.device)
+        with torch.no_grad():
+            out1 = model(x)
+            out2 = model(x)
+        self.assertTensorsEqual(out1, out2)

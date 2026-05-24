@@ -1,115 +1,108 @@
-# PINN Laplace Solver Project Guide
+# PINN Laplace Solver - Project Guide
 
 ## Project Overview
 This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) within a unit square domain $[0, 1] \times [0, 1]$. 
 
+PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. Instead of relying solely on data, we embed the differential equations directly into the loss function using automatic differentiation.
+
 ### Key Technologies
-- **Python 3.14** (Virtual Environment managed via `venv`)
-- **PyTorch**: Deep learning framework used for building the neural network and performing automatic differentiation.
-- **NumPy & Matplotlib**: For data manipulation and visualization.
-- **Unittest**: For ensuring code reliability.
+- **Python 3.8+**: Core language.
+- **PyTorch**: Used for the MLP architecture and its powerful `autograd` engine for computing PDE residues ($u_{xx}, u_{yy}$).
+- **NumPy & Matplotlib**: Data handling and visualization of the heat distribution.
+- **Unittest**: Comprehensive test suite for physics validation and regression testing.
 
 ### High-Level Architecture
-The project is modularized into four main components:
-1.  **Model (`src/model.py`)**: Defines the MLP (Multi-Layer Perceptron) architecture.
-2.  **Physics (`src/physics.py`)**: Contains logic for the PDE loss (Laplace operator) and boundary condition enforcement using automatic differentiation.
-3.  **Utilities (`src/utils.py`)**: Handles data generation for the domain and boundaries.
-4.  **Main Loop (`main.py`)**: Orchestrates the training process and generates visualizations.
+- **Model (`src/model.py`)**: A standard MLP using `Tanh` activations to ensure smooth higher-order derivatives.
+- **Physics (`src/physics.py`)**: Implements the Laplace operator $\Delta u = 0$ and Dirichlet boundary conditions.
+- **Utilities (`src/utils.py`)**: Robust data sampling and reproducibility helpers.
+- **Main (`main.py`)**: A production-ready training pipeline combining Adam (exploration) and L-BFGS (exploitation).
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Python 3.8+ (Tested on 3.14)
-- Virtual environment support
+- Python 3.8 or higher.
+- `pip` and `venv`.
 
 ### Installation
-1. Create and activate virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
 ### Basic Usage
-To train the model and generate the solution plot:
 ```bash
+# Run training and visualization
 python main.py
-```
-This produces `solution.png` showing the heat distribution.
 
-### Running Tests
-To run the unit tests:
-```bash
+# Run tests
 python -m unittest discover tests
 ```
 
 ---
 
 ## Project Structure
-- `src/`: Core logic
-    - `model.py`: PINN architecture definition.
-    - `physics.py`: Laplace and BC loss functions using `torch.autograd`.
-    - `utils.py`: Domain and boundary data sampling.
-- `tests/`: Unit tests for components.
-- `main.py`: Entry point for training and plotting.
-- `requirements.txt`: Project dependencies.
-- `solution.png`: Generated result after running the script.
+- `src/`:
+    - `model.py`: MLP architecture.
+    - `physics.py`: PDE and BC loss functions.
+    - `utils.py`: Sampling and hardware abstraction.
+- `tests/`:
+    - `base_test.py`: Shared testing logic and assertions.
+    - `test_model.py`: Unit tests for the neural network.
+    - `test_physics.py`: Validation of physical constraints.
+    - `test_utils.py`: Verification of data generation.
+    - `test_integration.py`: End-to-end workflow validation.
 
 ---
 
 ## Development Workflow
 
-### Coding Standards
-- Follow PEP 8 guidelines.
-- Use descriptive docstrings for all functions and classes.
-- Ensure all physical constraints are implemented using `torch.autograd`.
-- **Important**: When computing higher-order derivatives, use `allow_unused=True` in `torch.autograd.grad` to handle cases where certain inputs don't contribute to the gradient (e.g., in linear models during testing).
+### Coding Standards (Staff+ Engineer Perspective)
+1. **Differentiability**: Always use smooth activations (`Tanh`, `Sine`, `ELU`). Avoid `ReLU` for PINNs solving second-order PDEs.
+2. **Deterministic Sampling**: Always use the `set_seed` utility to ensure experiments are reproducible.
+3. **Device Awareness**: Always use `get_device()` to support both CPU and GPU transparently.
+4. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True` to handle edge cases in the computational graph.
 
 ### Testing Approach
-- **Unit Tests**: Every component (Model, Physics, Utils) has corresponding tests in `tests/test_pinn.py`.
-- **Physics Validation**: We verify the Laplace loss against known analytical solutions:
-    - Linear functions ($u=ax+by+c$) must yield 0 loss.
-    - Quadratic functions ($u=x^2+y^2$) must yield a calculated loss of 16.
-- **Integration Tests**: We confirm gradient flow by ensuring model weights update after a backward pass.
-- **Data Integrity**: Sampling utilities are tested for correct output shapes and physical boundary ranges.
+Our test suite follows a "Physics-First" verification strategy:
+- **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).
+- **Physics Validation**: Verify the Laplace residue against analytical solutions (Linear, Quad, Harmonic).
+- **Integration Tests**: Ensure the optimizer successfully reduces the loss and model weights are updated.
 
 ---
 
 ## Key Concepts
 
-### Physics-Informed Neural Networks (PINNs)
-PINNs integrate physical laws (PDEs) into the loss function of a neural network. The total loss is typically:
-$$L = L_{PDE} + \lambda L_{BC}$$
-where $L_{PDE}$ ensures the network satisfies the differential equation across the domain, and $L_{BC}$ enforces boundary conditions.
+### Laplace Operator
+We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$. In PyTorch, this is achieved by double-calling `torch.autograd.grad`.
 
-### Laplace Equation
-The project solves:
-$$\frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$$
+### Hybrid Optimization
+- **Adam**: Used initially to escape local minima and navigate the non-convex PINN loss landscape.
+- **L-BFGS**: Switched to for final convergence, as it uses second-order curvature information to find the precise physics solution.
 
 ---
 
 ## Common Tasks
 
-### Changing Boundary Conditions
-Modify `src/utils.py` in the `generate_boundary_data` function to define different boundary values or geometries.
+### Adding a New PDE
+1. Define the residue function in `src/physics.py`.
+2. Add a verification test in `tests/test_physics.py` using a known analytical solution.
+3. Update `main.py` to include the new loss term.
 
-### Adjusting Hyperparameters
-Training parameters like learning rate, epochs, and network depth can be adjusted in `main.py` and `src/model.py`.
+### Modifying Boundary Conditions
+Update `generate_boundary_data` in `src/utils.py`. The current implementation uses a $\sin(\pi x)$ profile on the bottom edge and zero elsewhere.
 
 ---
 
 ## Troubleshooting
-- **Loss not Kids converging**: Try increasing the weight $\lambda$ of the boundary loss (currently 10 in `main.py`) or decreasing the learning rate.
-- **Cuda Errors**: The current implementation defaults to CPU. For GPU support, move the model and tensors to `cuda`.
-- **Autograd Errors**: If you encounter "One of the differentiated Tensors appears to not have been used in the graph", ensure you are using `allow_unused=True` for secondary gradients.
+- **Vanishing Gradients**: Check if the network is too deep or if activations are saturating.
+- **Loss Stagnation**: Try increasing the `lambda_bc` weight. Boundary conditions are often harder to satisfy than the PDE itself.
+- **Shape Mismatches**: Ensure `u_bc` and `u_pred` have matching dimensions (typically `[N, 1]`).
 
 ---
 
 ## References
-- [Raissi et al. (2019) - Physics-informed neural networks](https://maziarraissi.github.io/PINNs/)
-- [PyTorch Documentation](https://pytorch.org/docs/stable/index.html)
+- [Raissi et al. (2019) PINN Paper](https://maziarraissi.github.io/PINNs/)
+- [Official PyTorch Tutorials](https://pytorch.org/tutorials/)

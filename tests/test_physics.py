@@ -105,3 +105,16 @@ class TestPhysics(PINNTestCase):
         y = torch.full((10,), 1e-6, device=self.device)
         loss = laplace_loss(model, x, y)
         self.assertTrue(torch.isfinite(loss))
+
+    def test_laplace_loss_large_coordinates(self):
+        """Physics Validation: Residue calculation should be invariant to coordinate shift."""
+        class ShiftedQuad(nn.Module):
+            def forward(self, x):
+                # u = (x-100)^2 + (y-100)^2 => u_xx+u_yy = 4
+                return ((x[:, 0]-100)**2 + (x[:, 1]-100)**2).unsqueeze(1)
+        
+        model = ShiftedQuad().to(self.device)
+        x = torch.linspace(100, 101, 10, device=self.device)
+        y = torch.linspace(100, 101, 10, device=self.device)
+        loss = laplace_loss(model, x, y)
+        self.assertAlmostEqual(loss.item(), 16.0, places=4)

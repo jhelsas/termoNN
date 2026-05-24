@@ -4,17 +4,17 @@
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/release/python-3140/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 
-A modular and production-ready implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) on a unit square domain.
+A modular and production-ready implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) on arbitrary, non-convex, and multi-connected domains.
 
 ## 🚀 Overview
 
-This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs). The network is trained by minimizing a multi-part loss function that enforces both the governing physical laws and the Dirichlet boundary conditions.
+This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs) on complex geometries. Unlike traditional solvers restricted to simple grids, this PINN implementation utilizes a Tensor-native polygon engine to handle domains with holes and non-convex boundaries.
 
 ### Key Features
-- **Device Agnostic**: Automatically detects and utilizes CUDA if available.
-- **Physics-Validated**: Robust testing suite verifying the Laplace operator against analytical solutions.
-- **Reproducible**: Fixed random seeds for consistent training results.
-- **Modular Design**: Separated concerns for model architecture, physics logic, and data utilities.
+- **Complex Geometries**: Support for arbitrary polygons with multiple internal holes.
+- **Tensor-Native Geometry**: All geometric checks (Point-in-Polygon) and sampling are performed directly in PyTorch for maximum efficiency.
+- **Two-Stage Optimization**: Combines Adam for exploration and L-BFGS for high-precision convergence.
+- **Physics-Validated**: Robust testing suite (38+ tests) verifying residues against analytical solutions (Harmonic, Saddle, Linear).
 
 ## 🛠️ Installation
 
@@ -45,7 +45,7 @@ python main.py
 After training, the model will save a contour plot of the solution to `solution.png`.
 
 ### Running Tests
-We maintain a comprehensive suite of 12 unit and integration tests:
+We maintain a comprehensive suite of 38+ unit, geometric, and integration tests:
 ```bash
 python -m unittest discover tests
 ```

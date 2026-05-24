@@ -1,20 +1,22 @@
 # PINN Laplace Solver - Project Guide
 
 ## Project Overview
-This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) within a unit square domain $[0, 1] \times [0, 1]$. 
+This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) within arbitrary, non-convex, and multi-connected domains (polygons with holes).
 
-PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. Instead of relying solely on data, we embed the differential equations directly into the loss function using automatic differentiation.
+PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. This implementation goes beyond simple rectangular domains, supporting complex geometries through a robust polygon-based sampling engine.
 
 ### Key Technologies
 - **Python 3.8+**: Core language.
 - **PyTorch**: Used for the MLP architecture and its powerful `autograd` engine for computing PDE residues ($u_{xx}, u_{yy}$).
 - **NumPy & Matplotlib**: Data handling and visualization of the heat distribution.
-- **Unittest**: Comprehensive test suite for physics validation and regression testing.
+- **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
 
 ### High-Level Architecture
 - **Model (`src/model.py`)**: A standard MLP using `Tanh` activations to ensure smooth higher-order derivatives.
 - **Physics (`src/physics.py`)**: Implements the Laplace operator $\Delta u = 0$ and Dirichlet boundary conditions.
-- **Utilities (`src/utils.py`)**: Robust data sampling and reproducibility helpers.
+- **Utilities (`src/utils.py`)**: 
+    - `PolygonDomain`: Handles complex geometries using ray-casting for point-in-polygon checks and rejection sampling for interior points.
+    - Data sampling and hardware abstraction.
 - **Main (`main.py`)**: A production-ready training pipeline combining Adam (exploration) and L-BFGS (exploitation).
 
 ---
@@ -68,12 +70,19 @@ python -m unittest discover tests
 ### Testing Approach
 Our test suite follows a "Physics-First" verification strategy:
 - **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).
+- **Geometric Validation**: Verifies ray-casting (inside/outside) and boundary sampling for complex polygons and holes.
 - **Physics Validation**: Verify the Laplace residue against analytical solutions (Linear, Quad, Harmonic).
-- **Integration Tests**: Ensure the optimizer successfully reduces the loss and model weights are updated.
+- **Integration Tests**: Ensure the optimizer successfully reduces the loss on complex domains (e.g., L-shaped domains).
 
 ---
 
 ## Key Concepts
+
+### Complex Domain Handling
+The project supports domains defined by an outer polygon and multiple inner holes, using a Tensor-native geometry engine.
+- **Interior Sampling**: Uses rejection sampling within the bounding box, executed entirely in PyTorch.
+- **Boundary Sampling**: Uses length-weighted sampling across all polygon segments to ensure uniform point density.
+- **Point-in-Polygon**: Vectorized ray-casting algorithm implemented in PyTorch for seamless GPU acceleration.
 
 ### Laplace Operator
 We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$. In PyTorch, this is achieved by double-calling `torch.autograd.grad`.
@@ -86,13 +95,26 @@ We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\
 
 ## Common Tasks
 
+### Defining a Custom Domain
+To solve Laplace on a custom shape:
+1. Define the outer boundary and holes as lists of `(x, y)` tuples.
+2. Instantiate `PolygonDomain`.
+3. Define a `bc_fn(x, y)` to set boundary values.
+4. Pass both to `train()`.
+
+```python
+outer = [(0,0), (2,0), (2,1), (0,1)] # Rectangle
+domain = PolygonDomain(outer)
+model = train(domain=domain, bc_fn=lambda x, y: torch.zeros_like(x))
+```
+
 ### Adding a New PDE
 1. Define the residue function in `src/physics.py`.
 2. Add a verification test in `tests/test_physics.py` using a known analytical solution.
 3. Update `main.py` to include the new loss term.
 
 ### Modifying Boundary Conditions
-Update `generate_boundary_data` in `src/utils.py`. The current implementation uses a $\sin(\pi x)$ profile on the bottom edge and zero elsewhere.
+Update the `bc_fn` passed to `train()`. The default in `main.py` uses a mask-based approach to apply specific values (like `sin(pi*x)`) to specific edges based on coordinates.
 
 ---
 

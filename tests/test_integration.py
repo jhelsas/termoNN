@@ -1,10 +1,11 @@
 import torch
 import os
 from src.model import PINN
-from src.utils import generate_domain_data, generate_boundary_data
+from src.utils import generate_domain_data, generate_boundary_data, PolygonDomain
 from src.physics import laplace_loss, boundary_loss
 from main import plot_results, train
 from tests.base_test import PINNTestCase
+import numpy as np
 
 class TestIntegration(PINNTestCase):
     def test_gradient_flow(self):
@@ -52,4 +53,21 @@ class TestIntegration(PINNTestCase):
         if os.path.exists("solution.png"):
             os.remove("solution.png")
         plot_results(model)
+        self.assertTrue(os.path.exists("solution.png"))
+
+    def test_polygon_integration_training(self):
+        """End-to-end test: Training on a L-shaped domain."""
+        # L-shaped domain
+        l_shape = [(0, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2)]
+        domain = PolygonDomain(l_shape)
+        
+        def zero_bc(x, y):
+            return torch.zeros((x.shape[0], 1), device=x.device)
+            
+        # Run very short training
+        model = train(domain=domain, bc_fn=zero_bc, adam_epochs=2, lbfgs_epochs=1)
+        self.assertIsNotNone(model)
+        
+        # Verify plotting with custom domain
+        plot_results(model, domain=domain)
         self.assertTrue(os.path.exists("solution.png"))

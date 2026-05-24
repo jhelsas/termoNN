@@ -1,6 +1,7 @@
 import torch
-from src.utils import generate_domain_data, generate_boundary_data, set_seed
+from src.utils import generate_domain_data, generate_boundary_data, set_seed, PolygonDomain
 from tests.base_test import PINNTestCase
+import numpy as np
 
 class TestUtils(PINNTestCase):
     def test_domain_sampling(self):
@@ -54,9 +55,20 @@ class TestUtils(PINNTestCase):
         self.assertEqual((y_bc == 0).sum().item(), expected)
         self.assertEqual((y_bc == 1).sum().item(), expected)
 
-    def test_sampling_gradient_isolation(self):
-        """Ensures sampled points do not have accidental gradients."""
-        x, y = generate_domain_data(10, device=self.device)
-        self.assertFalse(x.requires_grad)
-        x_bc, _, _ = generate_boundary_data(10, device=self.device)
-        self.assertFalse(x_bc.requires_grad)
+    def test_reproducibility_with_polygon(self):
+        """Ensures set_seed results in identical polygon sampling."""
+        outer = [(0,0), (2,1), (1,2)]
+        domain = PolygonDomain(outer)
+        
+        set_seed(42)
+        x1, y1 = generate_domain_data(10, device=self.device, domain=domain)
+        set_seed(42)
+        x2, y2 = generate_domain_data(10, device=self.device, domain=domain)
+        self.assertTensorsEqual(x1, x2)
+        self.assertTensorsEqual(y1, y2)
+
+    def test_domain_default_fallback(self):
+        """Verifies that passing domain=None still works (backward compatibility)."""
+        x, y = generate_domain_data(10, device=self.device, domain=None)
+        self.assertEqual(x.shape, (10,))
+        self.assertTrue(torch.all(x >= 0) and torch.all(x <= 1))

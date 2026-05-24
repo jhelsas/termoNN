@@ -1,7 +1,7 @@
 # PINN Laplace Solver - Project Guide
 
 ## Project Overview
-This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D Laplace Equation ($\nabla^2 u = 0$) within arbitrary, non-convex, and multi-connected domains (polygons with holes).
+This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and the **Laplace Equation** ($\nabla^2 u = 0$) within arbitrary, non-convex, and multi-connected domains (polygons with holes).
 
 PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. This implementation goes beyond simple rectangular domains, supporting complex geometries through a robust polygon-based sampling engine.
 
@@ -13,7 +13,7 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 
 ### High-Level Architecture
 - **Model (`src/model.py`)**: A standard MLP using `Tanh` activations to ensure smooth higher-order derivatives.
-- **Physics (`src/physics.py`)**: Implements the Laplace operator $\Delta u = 0$ and Dirichlet boundary conditions.
+- **Physics (`src/physics.py`)**: Implements the Poisson/Laplace operators and Dirichlet boundary conditions.
 - **Utilities (`src/utils.py`)**: 
     - `PolygonDomain`: Handles complex geometries using ray-casting for point-in-polygon checks and rejection sampling for interior points.
     - Data sampling and hardware abstraction.
@@ -84,8 +84,11 @@ The project supports domains defined by an outer polygon and multiple inner hole
 - **Boundary Sampling**: Uses length-weighted sampling across all polygon segments to ensure uniform point density.
 - **Point-in-Polygon**: Vectorized ray-casting algorithm implemented in PyTorch for seamless GPU acceleration.
 
-### Laplace Operator
-We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = 0$. In PyTorch, this is achieved by double-calling `torch.autograd.grad`.
+### Poisson/Laplace Operator
+We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = f(x, y)$.
+- If $f=0$, we are solving the **Laplace Equation**.
+- If $f \neq 0$, we are solving the **Poisson Equation**.
+In PyTorch, this is achieved by double-calling `torch.autograd.grad`.
 
 ### Hybrid Optimization
 - **Adam**: Used initially to escape local minima and navigate the non-convex PINN loss landscape.
@@ -95,17 +98,20 @@ We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\
 
 ## Common Tasks
 
-### Defining a Custom Domain
-To solve Laplace on a custom shape:
-1. Define the outer boundary and holes as lists of `(x, y)` tuples.
-2. Instantiate `PolygonDomain`.
-3. Define a `bc_fn(x, y)` to set boundary values.
-4. Pass both to `train()`.
+### Defining a Custom Domain and Physics
+To solve a problem:
+1. Define the geometry using `PolygonDomain`.
+2. Define a `bc_fn(x, y)` to set boundary values.
+3. (Optional) Define an `f_fn(x, y)` source term for Poisson.
+4. Pass them to `train()`.
 
 ```python
-outer = [(0,0), (2,0), (2,1), (0,1)] # Rectangle
+outer = [(0,0), (2,0), (2,1), (0,1)]
 domain = PolygonDomain(outer)
-model = train(domain=domain, bc_fn=lambda x, y: torch.zeros_like(x))
+# Solve Poisson: u_xx + u_yy = 1
+model = train(domain=domain, 
+              bc_fn=lambda x, y: torch.zeros_like(x),
+              f_fn=lambda x, y: torch.ones_like(x))
 ```
 
 ### Adding a New PDE

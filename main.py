@@ -4,16 +4,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from src.model import PINN
-from src.physics import laplace_loss, boundary_loss
+from src.physics import laplace_loss, boundary_loss, poisson_loss
 from src.utils import generate_domain_data, generate_boundary_data, set_seed, get_device, PolygonDomain
 
 # Suppress benign CUDA/cuBLAS context warnings
 warnings.filterwarnings("ignore", message="Attempting to run cuBLAS")
 
-def train(domain=None, bc_fn=None, adam_epochs: int = 2000, lbfgs_epochs: int = 500, lr: float = 0.001) -> torch.nn.Module:
+def train(domain=None, bc_fn=None, f_fn=None, adam_epochs: int = 2000, lbfgs_epochs: int = 500, lr: float = 0.001) -> torch.nn.Module:
     """
     Trains the PINN model using a two-stage approach.
-    Now supports custom Polygon domains.
+    Supports Laplace (f=0) and Poisson (f=f_fn) equations.
     """
     set_seed(42)
     device = get_device()
@@ -33,7 +33,7 @@ def train(domain=None, bc_fn=None, adam_epochs: int = 2000, lbfgs_epochs: int = 
         x_bc, y_bc, u_bc = generate_boundary_data(400, device=device, domain=domain, bc_fn=bc_fn)
         
         optimizer_adam.zero_grad()
-        loss_pde = laplace_loss(model, x_domain, y_domain)
+        loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + lambda_bc * loss_bc
         
@@ -61,7 +61,7 @@ def train(domain=None, bc_fn=None, adam_epochs: int = 2000, lbfgs_epochs: int = 
 
     def closure():
         optimizer_lbfgs.zero_grad()
-        loss_pde = laplace_loss(model, x_domain, y_domain)
+        loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + lambda_bc * loss_bc
         total_loss.backward()
@@ -132,9 +132,8 @@ if __name__ == "__main__":
         u[mask] = torch.sin(np.pi * x[mask]).unsqueeze(1)
         return u
 
-    trained_model = train(domain=domain, bc_fn=my_bc_fn)
-    plot_results(trained_model, domain=domain)
+    # Optional: Define a source term f(x, y) for Poisson (e.g., f = 1.0)
+    # def my_f_fn(x, y): return torch.ones_like(x)
 
-if __name__ == "__main__":
-    trained_model = train()
-    plot_results(trained_model)
+    trained_model = train(domain=domain, bc_fn=my_bc_fn, f_fn=None)
+    plot_results(trained_model, domain=domain)

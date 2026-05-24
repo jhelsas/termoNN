@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from src.physics import laplace_loss, boundary_loss
+import numpy as np
+from src.physics import laplace_loss, boundary_loss, poisson_loss
 from src.utils import generate_domain_data
 from tests.base_test import PINNTestCase
 
@@ -118,3 +119,41 @@ class TestPhysics(PINNTestCase):
         y = torch.linspace(100, 101, 10, device=self.device)
         loss = laplace_loss(model, x, y)
         self.assertAlmostEqual(loss.item(), 16.0, places=4)
+
+    def test_poisson_loss_with_source(self):
+        """Physics Validation: u = x^2 => u_xx=2, u_yy=0. f=2. Residue = 2+0-2 = 0."""
+        class XQuad(nn.Module):
+            def forward(self, x): return (x[:, 0]**2).unsqueeze(1)
+        
+        model = XQuad().to(self.device)
+        f_fn = lambda x, y: torch.full_like(x, 2.0)
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = poisson_loss(model, x, y, f_fn=f_fn)
+        self.assertAlmostEqual(loss.item(), 0.0, places=6)
+
+    def test_poisson_sine_source(self):
+        """Physics Validation: u = sin(x)sin(y) => u_xx + u_yy = -2sin(x)sin(y). f = -2sin(x)sin(y)."""
+        class SineSineModel(nn.Module):
+            def forward(self, x):
+                return (torch.sin(x[:, 0]) * torch.sin(x[:, 1])).unsqueeze(1)
+        
+        model = SineSineModel().to(self.device)
+        f_fn = lambda x, y: -2 * torch.sin(x) * torch.sin(y)
+        x = torch.linspace(0, np.pi, 20, device=self.device)
+        y = torch.linspace(0, np.pi, 20, device=self.device)
+        loss = poisson_loss(model, x, y, f_fn=f_fn)
+        self.assertAlmostEqual(loss.item(), 0.0, places=6)
+
+    def test_poisson_variable_source(self):
+        """Physics Validation: u = x^3 + y^3 => u_xx + u_yy = 6x + 6y. f = 6x + 6y."""
+        class CubicModel(nn.Module):
+            def forward(self, x):
+                return (x[:, 0]**3 + x[:, 1]**3).unsqueeze(1)
+        
+        model = CubicModel().to(self.device)
+        f_fn = lambda x, y: 6*x + 6*y
+        x = torch.linspace(0, 1, 10, device=self.device)
+        y = torch.linspace(0, 1, 10, device=self.device)
+        loss = poisson_loss(model, x, y, f_fn=f_fn)
+        self.assertAlmostEqual(loss.item(), 0.0, places=6)

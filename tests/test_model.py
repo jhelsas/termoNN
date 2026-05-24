@@ -112,3 +112,21 @@ class TestModel(PINNTestCase):
         w_low = model_low.net[2].weight.abs().mean().item()
         
         self.assertLess(w_high, w_low)
+
+    def test_activation_selection(self):
+        """Verifies that the correct activation module is used."""
+        model_tanh = PINN(activation='tanh')
+        self.assertTrue(any(isinstance(m, torch.nn.Tanh) for m in model_tanh.net))
+        
+        from src.model import Sine
+        model_sine = PINN(activation='sine')
+        self.assertTrue(any(isinstance(m, Sine) for m in model_sine.net))
+
+    def test_siren_first_layer_init(self):
+        """Verifies the first layer of SIREN has its unique 1/input_dim scaling."""
+        input_dim = 10
+        model = PINN(input_dim=input_dim, activation='sine')
+        # First layer is index 0
+        w_max = model.net[0].weight.abs().max().item()
+        # Should be roughly 1/input_dim = 0.1
+        self.assertLess(w_max, 1.1 / input_dim)

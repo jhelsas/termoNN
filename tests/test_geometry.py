@@ -100,3 +100,46 @@ class TestGeometry(PINNTestCase):
         x, y = domain.sample_interior(n, device=self.device)
         self.assertEqual(len(x), n)
         self.assertTrue(torch.all(domain.is_inside(x, y)))
+
+    def test_multi_hole_id_assignment(self):
+        """Geometry Validation: Verifies that multiple holes get unique sequential IDs."""
+        outer = torch.tensor([[0,0], [10,0], [10,10], [0,10]])
+        h1 = torch.tensor([[1,1], [2,1], [2,2], [1,2]])
+        h2 = torch.tensor([[3,3], [4,3], [4,4], [3,4]])
+        domain = PolygonDomain(outer, holes=[h1, h2])
+        
+        # Sample points and check IDs
+        _, _, b_ids = domain.sample_boundary(100)
+        unique_ids = torch.unique(b_ids).cpu().numpy().tolist()
+        self.assertIn(0, unique_ids) # Outer
+        self.assertIn(1, unique_ids) # Hole 1
+        self.assertIn(2, unique_ids) # Hole 2
+
+    def test_polygon_device_consistency(self):
+        """Geometry Validation: Ensures sampled points are on the domain's device."""
+        outer = torch.tensor([[0,0], [1,0], [1,1], [0,1]])
+        domain = PolygonDomain(outer, device=self.device)
+        x, y = domain.sample_interior(10)
+        self.assertEqual(x.device.type, self.device.type)
+        
+        # Test boundary sampling device
+        xb, yb, bids = domain.sample_boundary(10)
+        self.assertEqual(xb.device.type, self.device.type)
+
+    def test_bc_fn_signature_detection(self):
+        """Integration Validation: Verifies that generate_boundary_data detects b_ids in signature."""
+        outer = torch.tensor([[0,0], [1,0], [1,1], [0,1]])
+        domain = PolygonDomain(outer)
+        
+        # Function WITH b_ids
+        def bc_with_ids(x, y, b_ids):
+            return torch.ones_like(x).unsqueeze(1)
+            
+        # Function WITHOUT b_ids
+        def bc_without_ids(x, y):
+            return torch.zeros_like(x).unsqueeze(1)
+            
+        # These should run without TypeError
+        from src.utils import generate_boundary_data
+        _ = generate_boundary_data(10, domain=domain, bc_fn=bc_with_ids)
+        _ = generate_boundary_data(10, domain=domain, bc_fn=bc_without_ids)

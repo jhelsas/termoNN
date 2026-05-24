@@ -187,3 +187,29 @@ class TestPhysics(PINNTestCase):
         total = lp + 10.0 * lr
         self.assertTrue(torch.isfinite(total))
         self.assertTrue(total.requires_grad)
+
+    def test_range_loss_gradients(self):
+        """Range Validation: Ensures range loss provides gradients towards valid range."""
+        u = torch.tensor([1.5], requires_grad=True, device=self.device)
+        loss = range_loss(u, max_val=1.0)
+        loss.backward()
+        # Gradient should be positive (to decrease u)
+        self.assertGreater(u.grad.item(), 0.0)
+
+    def test_poisson_source_shape_robustness(self):
+        """Physics Validation: poisson_loss should handle scalar and tensor sources."""
+        model = nn.Linear(2, 1).to(self.device)
+        x = torch.rand(5, device=self.device)
+        y = torch.rand(5, device=self.device)
+        
+        # Case 1: Constant Tensor source
+        f_tensor = lambda x, y: torch.ones_like(x)
+        l1 = poisson_loss(model, x, y, f_fn=f_tensor)
+        
+        # Case 2: Scalar source (if f_fn returns a float)
+        # Note: Our current f_fn signature expects tensors, so we test tensor of size 1
+        f_scalar = lambda x, y: torch.tensor(1.0, device=x.device)
+        l2 = poisson_loss(model, x, y, f_fn=f_scalar)
+        
+        self.assertTrue(torch.isfinite(l1))
+        self.assertTrue(torch.isfinite(l2))

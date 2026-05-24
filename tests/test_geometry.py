@@ -39,16 +39,19 @@ class TestGeometry(PINNTestCase):
         self.assertTrue(torch.all(inside))
 
     def test_polygon_boundary_sampling(self):
-        """Verifies boundary sampling returns points on the edges."""
+        """Verifies boundary sampling returns points on the edges and correct IDs."""
         outer = torch.tensor([(0, 0), (1, 0), (1, 1), (0, 1)])
         domain = PolygonDomain(outer, device=self.device)
         
         n = 100
-        x, y = domain.sample_boundary(n)
+        x, y, b_ids = domain.sample_boundary(n)
         
+        # Every point is on edge
         on_edge = (torch.abs(x - 0) < 1e-6) | (torch.abs(x - 1) < 1e-6) | \
                   (torch.abs(y - 0) < 1e-6) | (torch.abs(y - 1) < 1e-6)
         self.assertTrue(torch.all(on_edge))
+        # Every point belongs to polygon 0
+        self.assertTrue(torch.all(b_ids == 0))
 
     def test_non_convex_sampling_success(self):
         """Ensures rejection sampling works for a non-convex 'C' shape."""

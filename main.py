@@ -94,23 +94,24 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
             
     return model
 
-def plot_results(model: torch.nn.Module, domain=None, filename='solution.png') -> None:
-    """Generates and saves the solution plot, masking areas outside the domain."""
+def plot_results(model: torch.nn.Module, domain=None, filename='solution.png', resolution=300) -> None:
+    """Generates and saves the solution plot with high resolution and masking."""
     device = next(model.parameters()).device
     
     # Determine bounds
     if domain:
         min_x, max_x = domain.min_x.cpu().item(), domain.max_x.cpu().item()
         min_y, max_y = domain.min_y.cpu().item(), domain.max_y.cpu().item()
-        # Add a small margin
-        margin = 0.1
-        min_x, max_x = min_x - margin, max_x + margin
-        min_y, max_y = min_y - margin, max_y + margin
+        margin = 0.05
+        dx, dy = max_x - min_x, max_y - min_y
+        min_x, max_x = min_x - dx*margin, max_x + dx*margin
+        min_y, max_y = min_y - dy*margin, max_y + dy*margin
     else:
         min_x, max_x, min_y, max_y = 0, 1, 0, 1
 
-    x = np.linspace(min_x, max_x, 150)
-    y = np.linspace(min_y, max_y, 150)
+    # Create high-resolution meshgrid
+    x = np.linspace(min_x, max_x, resolution)
+    y = np.linspace(min_y, max_y, resolution)
     X, Y = np.meshgrid(x, y)
     
     # Flatten and convert to torch
@@ -122,24 +123,50 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png') -
     with torch.no_grad():
         u_pred_flat = model(coords).cpu().numpy()
         
-    u_pred = u_pred_flat.reshape(150, 150)
+    u_pred = u_pred_flat.reshape(resolution, resolution)
     
     # Mask points outside the domain
+    u_min, u_max = u_pred_flat.min(), u_pred_flat.max()
+    
     if domain:
         px = torch.tensor(X.ravel(), dtype=torch.float32, device=domain.device)
         py = torch.tensor(Y.ravel(), dtype=torch.float32, device=domain.device)
-        mask = domain.is_inside(px, py).reshape(150, 150).cpu().numpy()
+        mask = domain.is_inside(px, py).reshape(resolution, resolution).cpu().numpy()
+        
+        # Diagnostics for values INSIDE the domain
+        u_interior = u_pred[mask]
+        u_min, u_max = u_interior.min(), u_interior.max()
         u_pred[~mask] = np.nan
         
-    plt.figure(figsize=(8, 6))
-    plt.contourf(X, Y, u_pred, levels=50, cmap='viridis')
+    print(f"Diagnostics for {filename}:")
+    print(f"  - Value Range in Domain: [{u_min:.4f}, {u_max:.4f}]")
+    
+    # Check for maximum principle violations (assuming BCs are in [0, 1])
+    if u_min < -0.05 or u_max > 1.05:
+        print(f"  - WARNING: Significant range violation detected (Maximum Principle violation).")
+        
+    plt.figure(figsize=(10, 8), dpi=200)
+    # Using more levels for smoother contouring
+    plt.contourf(X, Y, u_pred, levels=100, cmap='viridis')
     plt.colorbar(label='u(x, y)')
-    plt.title('PINN Solution')
+    
+    # Overlay the domain boundary for reference
+    if domain:
+        # Plot outer boundary
+        v = domain.vertices.cpu().numpy()
+        plt.plot(np.append(v[:, 0], v[0, 0]), np.append(v[:, 1], v[0, 1]), 'k-', lw=1.5, alpha=0.8)
+        # Plot holes
+        for hole in domain.holes:
+            vh = hole.cpu().numpy()
+            plt.plot(np.append(vh[:, 0], vh[0, 0]), np.append(vh[:, 1], vh[0, 1]), 'k-', lw=1.5, alpha=0.8)
+
+    plt.title('High-Resolution PINN Solution')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.savefig(filename)
+    plt.tight_layout()
+    plt.savefig(filename, bbox_inches='tight')
     plt.close()
-    print(f"Result saved to {filename}")
+    print(f"High-resolution result saved to {filename}")
 
 def solve_koch_snowflake_example():
     """
@@ -172,10 +199,15 @@ def solve_nested_snowflakes_example(config=None):
     inner_vertices = generate_koch_snowflake(order=2, scale=0.4, center=(0.5, 0.5))
     domain = PolygonDomain(outer_vertices, holes=[inner_vertices])
     
-    def bc_nested(x, y):
+    def bc_nested(x, y, b_ids=None):
         u = torch.zeros((x.shape[0], 1), device=x.device)
-        dist = torch.sqrt((x - 0.5)**2 + (y - 0.5)**2)
-        u[dist < 0.4] = 1.0 
+        if b_ids is not None:
+            # ID 0 is outer snowflake, ID 1 is the hole
+            u[b_ids == 1] = 1.0
+        else:
+            # Fallback to distance check if IDs aren't available
+            dist = torch.sqrt((x - 0.5)**2 + (y - 0.5)**2)
+            u[dist < 0.4] = 1.0 
         return u
 
     print("Training on Nested Snowflake domain...")
@@ -185,14 +217,17 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # Example Configuration: tunable architecture and resolution
+    # High-Capacity configuration to solve Maximum Principle violations
     config = {
-        "num_layers": 5,           # Deeper network for complex fractals
-        "hidden_dim": 32,          # Wider layers
-        "adam_epochs": 1000,       # Reduced for quick demonstration
-        "lbfgs_epochs": 200,
-        "adam_points_domain": 2500, # Higher resolution sampling
-        "adam_points_bc": 500,
+        "num_layers": 6,             # Even deeper
+        "hidden_dim": 64,            # Much wider for high-frequency details
+        "adam_epochs": 2000,         # More exploration
+        "lbfgs_epochs": 1000,        # Extended fine-tuning
+        "adam_points_domain": 3000, 
+        "adam_points_bc": 1000,      # Prioritize boundary resolution
+        "lbfgs_points_domain": 5000, 
+        "lbfgs_points_bc": 2000,
+        "lambda_bc": 100.0,          # Stronger boundary penalty
     }
 
     solve_nested_snowflakes_example(config=config)

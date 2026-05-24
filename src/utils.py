@@ -37,42 +37,37 @@ def generate_domain_data(n_points=1000, device='cpu', domain=None):
 def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
     """
     Generates boundary points and target values.
-    Defaults to the hardcoded sin(pi*x) square BC if no domain is provided.
     """
     if domain is None:
-        # Default behavior for the unit square [0, 1]x[0, 1]
+        # ... (keep default square logic)
         n_per_side = n_points // 4
-        
-        # Top: y = 1
         x_top = torch.rand(n_per_side, device=device)
         y_top = torch.ones(n_per_side, device=device)
         u_top = torch.zeros((n_per_side, 1), device=device)
-
-        # Bottom: y = 0
         x_bot = torch.rand(n_per_side, device=device)
         y_bot = torch.zeros(n_per_side, device=device)
         u_bot = torch.sin(np.pi * x_bot).unsqueeze(1)
-
-        # Left: x = 0
         x_left = torch.zeros(n_per_side, device=device)
         y_left = torch.rand(n_per_side, device=device)
         u_left = torch.zeros((n_per_side, 1), device=device)
-
-        # Right: x = 1
         x_right = torch.ones(n_per_side, device=device)
         y_right = torch.rand(n_per_side, device=device)
         u_right = torch.zeros((n_per_side, 1), device=device)
-
         x_bc = torch.cat([x_top, x_bot, x_left, x_right])
         y_bc = torch.cat([y_top, y_bot, y_left, y_right])
         u_bc = torch.cat([u_top, u_bot, u_left, u_right])
-        
         return x_bc, y_bc, u_bc
 
     # Use the custom domain logic
-    x_bc, y_bc = domain.sample_boundary(n_points, device)
+    x_bc, y_bc, b_ids = domain.sample_boundary(n_points, device)
     if bc_fn is not None:
-        u_bc = bc_fn(x_bc, y_bc)
+        # Check if bc_fn accepts the boundary IDs
+        import inspect
+        sig = inspect.signature(bc_fn)
+        if 'b_ids' in sig.parameters:
+            u_bc = bc_fn(x_bc, y_bc, b_ids=b_ids)
+        else:
+            u_bc = bc_fn(x_bc, y_bc)
     else:
         u_bc = torch.zeros((x_bc.shape[0], 1), device=device)
         
@@ -142,7 +137,7 @@ class PolygonDomain:
         return x, y
 
     def sample_boundary(self, n_points, device=None):
-        """Samples points along the edges using length-weighted selection."""
+        """Samples points along the edges and returns coordinates plus polygon IDs."""
         dev = device or self.device
         
         def get_edge_data(poly):
@@ -153,26 +148,30 @@ class PolygonDomain:
             return p1, vecs, lengths
 
         all_polys = [self.vertices] + self.holes
-        edge_starts, edge_vecs, edge_lens = [], [], []
+        edge_starts, edge_vecs, edge_lens, edge_ids = [], [], [], []
         
-        for poly in all_polys:
+        for idx, poly in enumerate(all_polys):
             p1, v, l = get_edge_data(poly)
             edge_starts.append(p1)
             edge_vecs.append(v)
             edge_lens.append(l)
+            # Assign poly ID to every edge of this polygon
+            edge_ids.append(torch.full((len(l),), idx, dtype=torch.long, device=self.device))
             
         starts = torch.cat(edge_starts)
         vecs = torch.cat(edge_vecs)
         lens = torch.cat(edge_lens)
+        ids = torch.cat(edge_ids)
         
-        # Categorical sampling based on edge lengths
+        # Categorical sampling
         probs = lens / lens.sum()
-        edge_indices = torch.multinomial(probs, n_points, replacement=True)
+        indices = torch.multinomial(probs, n_points, replacement=True)
         
         t = torch.rand(n_points, 1, device=self.device)
-        sampled_pts = starts[edge_indices] + t * vecs[edge_indices]
+        sampled_pts = starts[indices] + t * vecs[indices]
+        sampled_ids = ids[indices]
         
-        return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev)
+        return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev), sampled_ids.to(dev)
 
 def generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5)):
     """

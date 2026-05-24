@@ -96,9 +96,9 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     optimizer_lbfgs = optim.LBFGS(
         model.parameters(), 
         lr=1, 
-        max_iter=20, 
-        tolerance_grad=1e-7, 
-        history_size=50,
+        max_iter=40,              # Increased per-step budget
+        tolerance_grad=1e-9,      # Tighter tolerance to prevent early stall
+        history_size=100,         # More history for curvature estimation
         line_search_fn="strong_wolfe"
     )
 
@@ -261,21 +261,20 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # Multi-Frequency "Fourier" configuration:
-    # Captures global heat flow (low omega) and fractal detail (high omega)
+    # "Final Push" configuration: Spectral Balance + Heavy Penalties
     config = {
         "num_layers": 6,             
         "hidden_dim": 128,           
         "activation": "sine",
-        "omega": (2.0, 40.0),        # Multi-frequency range (min, max)
-        "adam_epochs": 2000,         
-        "lbfgs_epochs": 1000,        
+        "omega": (1.0, 30.0),        # Tighter frequency range for stability
+        "adam_epochs": 2500,         
+        "lbfgs_epochs": 1500,        
         "adam_points_domain": 2000, 
-        "adam_points_bc": 1000,      
-        "lbfgs_points_domain": 4000, 
-        "lbfgs_points_bc": 2000,
-        "lambda_bc": 100.0,          
-        "lambda_range": 20.0,        
+        "adam_points_bc": 1500,      
+        "lbfgs_points_domain": 5000, 
+        "lbfgs_points_bc": 3000,
+        "lambda_bc": 500.0,          # Strong boundary anchor
+        "lambda_range": 500.0,       # Strong range anchor to squash ringing
     }
 
     solve_nested_snowflakes_example(config=config)

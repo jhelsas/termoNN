@@ -1,5 +1,6 @@
 import torch
 from src.model import PINN
+from src.physics import laplace_loss
 from tests.base_test import PINNTestCase
 
 class TestModel(PINNTestCase):
@@ -153,3 +154,19 @@ class TestModel(PINNTestCase):
         if torch.cuda.is_available():
             model.to('cuda')
             self.assertEqual(model.net[1].omega.device.type, 'cuda')
+
+    def test_siren_gradient_stability_extreme_omega(self):
+        """Pair-wise Validation: Verifies that high frequencies don't cause immediate NaN."""
+        # Using a very high omega (e.g. 100)
+        model = PINN(activation='sine', omega=100.0).to(self.device)
+        x = torch.rand(10, device=self.device)
+        y = torch.rand(10, device=self.device)
+        
+        loss = laplace_loss(model, x, y)
+        self.assertTrue(torch.isfinite(loss))
+        
+        # Verify backward pass is stable
+        loss.backward()
+        for p in model.parameters():
+            if p.requires_grad and p.grad is not None:
+                self.assertTrue(torch.isfinite(p.grad).all())

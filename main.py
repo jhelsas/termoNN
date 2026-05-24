@@ -74,19 +74,23 @@ def train(domain=None, bc_fn=None, f_fn=None, adam_epochs: int = 2000, lbfgs_epo
             
     return model
 
-def plot_results(model: torch.nn.Module, domain=None) -> None:
+def plot_results(model: torch.nn.Module, domain=None, filename='solution.png') -> None:
     """Generates and saves the solution plot, masking areas outside the domain."""
     device = next(model.parameters()).device
     
     # Determine bounds
     if domain:
-        min_x, max_x = domain.min_x, domain.max_x
-        min_y, max_y = domain.min_y, domain.max_y
+        min_x, max_x = domain.min_x.cpu().item(), domain.max_x.cpu().item()
+        min_y, max_y = domain.min_y.cpu().item(), domain.max_y.cpu().item()
+        # Add a small margin
+        margin = 0.1
+        min_x, max_x = min_x - margin, max_x + margin
+        min_y, max_y = min_y - margin, max_y + margin
     else:
         min_x, max_x, min_y, max_y = 0, 1, 0, 1
 
-    x = np.linspace(min_x, max_x, 100)
-    y = np.linspace(min_y, max_y, 100)
+    x = np.linspace(min_x, max_x, 150)
+    y = np.linspace(min_y, max_y, 150)
     X, Y = np.meshgrid(x, y)
     
     # Flatten and convert to torch
@@ -98,42 +102,37 @@ def plot_results(model: torch.nn.Module, domain=None) -> None:
     with torch.no_grad():
         u_pred_flat = model(coords).cpu().numpy()
         
-    u_pred = u_pred_flat.reshape(100, 100)
+    u_pred = u_pred_flat.reshape(150, 150)
     
     # Mask points outside the domain
     if domain:
         px = torch.tensor(X.ravel(), dtype=torch.float32, device=domain.device)
         py = torch.tensor(Y.ravel(), dtype=torch.float32, device=domain.device)
-        mask = domain.is_inside(px, py).reshape(100, 100).cpu().numpy()
+        mask = domain.is_inside(px, py).reshape(150, 150).cpu().numpy()
         u_pred[~mask] = np.nan
         
     plt.figure(figsize=(8, 6))
     plt.contourf(X, Y, u_pred, levels=50, cmap='viridis')
     plt.colorbar(label='u(x, y)')
-    plt.title('PINN Solution to Laplace Equation')
+    plt.title('PINN Solution')
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.savefig('solution.png')
-    print("Result saved to solution.png")
+    plt.savefig(filename)
+    plt.close()
+    print(f"Result saved to {filename}")
 
 if __name__ == "__main__":
-    # Example: A domain with a hole
-    # Square [0, 1]x[0, 1] with a triangle hole
-    outer = [(0, 0), (1, 0), (1, 1), (0, 1)]
-    hole = [(0.4, 0.4), (0.6, 0.4), (0.5, 0.6)]
+    from src.utils import generate_koch_snowflake, PolygonDomain
     
-    domain = PolygonDomain(outer, holes=[hole])
+    print("--- Koch Snowflake Harmonic Example ---")
+    vertices = generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5))
+    domain = PolygonDomain(vertices)
     
-    # BC Function: u(x, y) = sin(pi*x) on the bottom (y=0) and 0 elsewhere
-    def my_bc_fn(x, y):
-        u = torch.zeros((x.shape[0], 1), device=x.device)
-        # Identify bottom edge points (y near 0)
-        mask = (y < 1e-5) & (x > 0) & (x < 1)
-        u[mask] = torch.sin(np.pi * x[mask]).unsqueeze(1)
-        return u
+    # BC Option: Harmonic
+    def bc_harmonic(x, y):
+        # u(x, y) = sin(pi*(x-0.5)) * cosh(pi*(y-0.5))
+        return (torch.sin(np.pi * (x-0.5)) * torch.cosh(np.pi * (y-0.5))).unsqueeze(1)
 
-    # Optional: Define a source term f(x, y) for Poisson (e.g., f = 1.0)
-    # def my_f_fn(x, y): return torch.ones_like(x)
-
-    trained_model = train(domain=domain, bc_fn=my_bc_fn, f_fn=None)
-    plot_results(trained_model, domain=domain)
+    print("\n--- Scenario: harmonic ---")
+    model = train(domain=domain, bc_fn=bc_harmonic, adam_epochs=1200, lbfgs_epochs=200)
+    plot_results(model, domain=domain, filename='snowflake_harmonic.png')

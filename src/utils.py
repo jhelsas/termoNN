@@ -173,3 +173,56 @@ class PolygonDomain:
         sampled_pts = starts[edge_indices] + t * vecs[edge_indices]
         
         return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev)
+
+def generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5)):
+    """
+    Generates vertices for a Koch Snowflake fractal.
+    
+    Args:
+        order: Fractal depth (recursion level).
+        scale: Scale of the snowflake.
+        center: (x, y) center of the snowflake.
+        
+    Returns:
+        torch.Tensor: (N, 2) vertices.
+    """
+    def koch_recurse(p1, p2, order):
+        if order == 0:
+            return [p1]
+        
+        # Vector from p1 to p2
+        v = p2 - p1
+        
+        # Compute the 3 intermediate points
+        q = p1 + v / 3.0
+        r = p1 + v * 2.0 / 3.0
+        
+        # s is the peak of the equilateral triangle
+        # Rotation by 60 degrees: [cos -sin; sin cos]
+        angle = -np.pi / 3.0
+        rot = torch.tensor([
+            [np.cos(angle), -np.sin(angle)],
+            [np.sin(angle),  np.cos(angle)]
+        ], dtype=torch.float32)
+        
+        s = q + torch.matmul(rot, (r - q))
+        
+        # Recursively get vertices
+        return (koch_recurse(p1, q, order - 1) + 
+                koch_recurse(q, s, order - 1) + 
+                koch_recurse(s, r, order - 1) + 
+                koch_recurse(r, p2, order - 1))
+
+    # Initial equilateral triangle vertices
+    # Radius of circumscribed circle
+    r = scale / np.sqrt(3)
+    angles = np.linspace(0, 2*np.pi, 4)[:-1] + np.pi/2
+    p1 = torch.tensor([center[0] + r*np.cos(angles[0]), center[1] + r*np.sin(angles[0])], dtype=torch.float32)
+    p2 = torch.tensor([center[0] + r*np.cos(angles[1]), center[1] + r*np.sin(angles[1])], dtype=torch.float32)
+    p3 = torch.tensor([center[0] + r*np.cos(angles[2]), center[1] + r*np.sin(angles[2])], dtype=torch.float32)
+    
+    vertices = (koch_recurse(p1, p2, order) + 
+                koch_recurse(p2, p3, order) + 
+                koch_recurse(p3, p1, order))
+    
+    return torch.stack(vertices)

@@ -69,3 +69,31 @@ class TestGeometry(PINNTestCase):
             
         _, _, u_bc = generate_boundary_data(50, device=self.device, domain=domain, bc_fn=constant_bc)
         self.assertTrue(torch.all(u_bc == 5.0))
+
+    def test_koch_snowflake_generation(self):
+        """Verifies Koch Snowflake vertices are generated and closed."""
+        from src.utils import generate_koch_snowflake
+        order = 2
+        vertices = generate_koch_snowflake(order=order, scale=1.0)
+        
+        # Order N snowflake has 3 * 4^N vertices
+        expected_len = 3 * (4**order)
+        self.assertEqual(len(vertices), expected_len)
+        
+        # Check coordinates are finite
+        self.assertTrue(torch.isfinite(vertices).all())
+        
+        # Ensure it fits roughly in the specified scale
+        self.assertTrue(vertices.max() <= 1.5)
+        self.assertTrue(vertices.min() >= -0.5)
+
+    def test_koch_snowflake_domain(self):
+        """Verifies we can sample inside a Koch Snowflake."""
+        from src.utils import generate_koch_snowflake
+        vertices = generate_koch_snowflake(order=2)
+        domain = PolygonDomain(vertices)
+        
+        n = 50
+        x, y = domain.sample_interior(n, device=self.device)
+        self.assertEqual(len(x), n)
+        self.assertTrue(torch.all(domain.is_inside(x, y)))

@@ -34,6 +34,17 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         default_config.update(config)
     cfg = default_config
 
+    # Sanitation and Sanity Checks
+    required_keys = ["hidden_dim", "num_layers", "activation", "lambda_bc"]
+    for key in required_keys:
+        if key not in cfg:
+            raise KeyError(f"Missing required config key: {key}")
+    
+    print(f"--- PINN Configuration ---")
+    print(f"  - Model: {cfg['num_layers']} layers, {cfg['hidden_dim']} units, {cfg['activation']} activation")
+    print(f"  - Weighting: lambda_bc={cfg['lambda_bc']}")
+    print(f"  - Resolution: Adam({cfg['adam_points_domain']}/{cfg['adam_points_bc']}), L-BFGS({cfg['lbfgs_points_domain']}/{cfg['lbfgs_points_bc']})")
+
     set_seed(cfg["seed"])
     device = get_device()
     print(f"Training on device: {device}")
@@ -41,7 +52,8 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     # Architecture defined by config
     model = PINN(
         hidden_dim=cfg["hidden_dim"], 
-        num_layers=cfg["num_layers"]
+        num_layers=cfg["num_layers"],
+        activation=cfg.get("activation", "tanh")
     ).to(device)
     
     # Stage 1: Adam
@@ -85,12 +97,18 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + cfg["lambda_bc"] * loss_bc
         total_loss.backward()
+        # Attach individual losses to the total_loss tensor for retrieval in the main loop
+        total_loss.pde = loss_pde.item()
+        total_loss.bc = loss_bc.item()
         return total_loss
 
     for epoch in range(cfg["lbfgs_epochs"]):
         loss = optimizer_lbfgs.step(closure)
         if epoch % 100 == 0:
-            print(f"L-BFGS Epoch {epoch:3d} | Loss: {loss.item():.8f}")
+            # L-BFGS closure might be called multiple times per step, 
+            # we report the values from the final closure call
+            print(f"L-BFGS Epoch {epoch:3d} | Loss: {loss.item():.8f} "
+                  f"(PDE: {loss.pde:.8f}, BC: {loss.bc:.8f})")
             
     return model
 
@@ -221,6 +239,7 @@ if __name__ == "__main__":
     config = {
         "num_layers": 6,             # Even deeper
         "hidden_dim": 64,            # Much wider for high-frequency details
+        "activation": "sine",        # Use SIREN for fractal complexity
         "adam_epochs": 2000,         # More exploration
         "lbfgs_epochs": 1000,        # Extended fine-tuning
         "adam_points_domain": 3000, 

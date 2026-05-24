@@ -77,3 +77,10 @@ def boundary_loss(model: Callable[[torch.Tensor], torch.Tensor],
     coords = torch.stack([x_bc, y_bc], dim=1)
     u_pred = model(coords)
     return torch.mean((u_pred - u_bc)**2)
+
+def range_loss(u: torch.Tensor, min_val: float = 0.0, max_val: float = 1.0) -> torch.Tensor:
+    """
+    Penalizes values that violate the Maximum Principle (staying within [min, max]).
+    """
+    penalty = torch.relu(u - max_val)**2 + torch.relu(min_val - u)**2
+    return torch.mean(penalty)

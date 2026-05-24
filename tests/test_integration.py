@@ -56,6 +56,12 @@ class TestIntegration(PINNTestCase):
         plot_results(model)
         self.assertTrue(os.path.exists("solution.png"))
 
+    def test_range_loss_integration(self):
+        """Integration Test: Ensures lambda_range > 0 does not crash the trainer."""
+        config = {"adam_epochs": 2, "lbfgs_epochs": 1, "lambda_range": 10.0}
+        model = train(config=config)
+        self.assertIsNotNone(model)
+
     def test_polygon_integration_training(self):
         """End-to-end test: Training on a L-shaped domain."""
         # L-shaped domain

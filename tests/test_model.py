@@ -92,3 +92,23 @@ class TestModel(PINNTestCase):
             out1 = model(x)
             out2 = model(x)
         self.assertTensorsEqual(out1, out2)
+
+    def test_siren_activation_support(self):
+        """Ensures SIREN (Sine) activation can be instantiated."""
+        model = PINN(activation='sine', omega=10.0).to(self.device)
+        x = torch.randn(5, 2, device=self.device)
+        output = model(x)
+        self.assertEqual(output.shape, (5, 1))
+        self.assertTrue(torch.isfinite(output).all())
+
+    def test_siren_initialization_scaling(self):
+        """Verifies SIREN weights are scaled correctly based on omega."""
+        # Using a very large omega should result in very small weights (uniform scaling)
+        model_high = PINN(activation='sine', omega=1000.0, hidden_dim=100)
+        model_low = PINN(activation='sine', omega=1.0, hidden_dim=100)
+        
+        # Check hidden layer weights (index 2 is first hidden linear layer in the Sequential)
+        w_high = model_high.net[2].weight.abs().mean().item()
+        w_low = model_low.net[2].weight.abs().mean().item()
+        
+        self.assertLess(w_high, w_low)

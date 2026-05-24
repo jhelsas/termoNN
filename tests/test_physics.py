@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from src.physics import laplace_loss, boundary_loss, poisson_loss
+from src.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
 from src.utils import generate_domain_data
 from tests.base_test import PINNTestCase
 
@@ -157,3 +157,33 @@ class TestPhysics(PINNTestCase):
         y = torch.linspace(0, 1, 10, device=self.device)
         loss = poisson_loss(model, x, y, f_fn=f_fn)
         self.assertAlmostEqual(loss.item(), 0.0, places=6)
+
+    def test_range_loss_zeros(self):
+        """Range Validation: Loss must be 0 if all values are in [0, 1]."""
+        u = torch.tensor([0.0, 0.5, 1.0], device=self.device)
+        loss = range_loss(u, min_val=0.0, max_val=1.0)
+        self.assertEqual(loss.item(), 0.0)
+
+    def test_range_loss_active(self):
+        """Range Validation: Loss must be > 0 if values exceed [0, 1]."""
+        u = torch.tensor([-0.1, 1.1], device=self.device)
+        loss = range_loss(u, min_val=0.0, max_val=1.0)
+        # 0.1^2 + 0.1^2 = 0.01 + 0.01 = 0.02. Mean = 0.01.
+        self.assertAlmostEqual(loss.item(), 0.01, places=5)
+
+    def test_combined_poisson_and_range_loss(self):
+        """Physics Integration: Ensures range loss can be added to Poisson loss without errors."""
+        model = nn.Linear(2, 1).to(self.device)
+        x = torch.rand(10, device=self.device)
+        y = torch.rand(10, device=self.device)
+        
+        # Loss 1: Physics
+        lp = poisson_loss(model, x, y)
+        # Loss 2: Range
+        coords = torch.stack([x, y], dim=1)
+        u = model(coords)
+        lr = range_loss(u)
+        
+        total = lp + 10.0 * lr
+        self.assertTrue(torch.isfinite(total))
+        self.assertTrue(total.requires_grad)

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import warnings
 from src.model import PINN
-from src.physics import laplace_loss, boundary_loss, poisson_loss
+from src.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
 from src.utils import generate_domain_data, generate_boundary_data, set_seed, get_device, PolygonDomain
 
 # Suppress benign CUDA/cuBLAS context warnings
@@ -19,6 +19,8 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     default_config = {
         "num_layers": 4,
         "hidden_dim": 20,
+        "activation": "sine",
+        "omega": 30.0,
         "adam_epochs": 2000,
         "lbfgs_epochs": 500,
         "adam_lr": 0.001,
@@ -27,6 +29,7 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         "lbfgs_points_domain": 3000,
         "lbfgs_points_bc": 600,
         "lambda_bc": 10.0,
+        "lambda_range": 0.0,  # Penalty for range violations (off by default)
         "seed": 42
     }
     
@@ -53,7 +56,8 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     model = PINN(
         hidden_dim=cfg["hidden_dim"], 
         num_layers=cfg["num_layers"],
-        activation=cfg.get("activation", "tanh")
+        activation=cfg["activation"],
+        omega=cfg["omega"]
     ).to(device)
     
     # Stage 1: Adam
@@ -67,7 +71,15 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         optimizer_adam.zero_grad()
         loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
+        
         total_loss = loss_pde + cfg["lambda_bc"] * loss_bc
+        
+        if cfg["lambda_range"] > 0:
+            # Predict on domain to check range
+            coords_d = torch.stack([x_domain, y_domain], dim=1)
+            u_domain = model(coords_d)
+            loss_r = range_loss(u_domain)
+            total_loss += cfg["lambda_range"] * loss_r
         
         total_loss.backward()
         optimizer_adam.step()
@@ -96,19 +108,27 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + cfg["lambda_bc"] * loss_bc
+        
+        loss_r_val = 0.0
+        if cfg["lambda_range"] > 0:
+            coords_d = torch.stack([x_domain, y_domain], dim=1)
+            u_domain = model(coords_d)
+            loss_r = range_loss(u_domain)
+            total_loss += cfg["lambda_range"] * loss_r
+            loss_r_val = loss_r.item()
+            
         total_loss.backward()
-        # Attach individual losses to the total_loss tensor for retrieval in the main loop
+        # Attach individual losses
         total_loss.pde = loss_pde.item()
         total_loss.bc = loss_bc.item()
+        total_loss.range = loss_r_val
         return total_loss
 
     for epoch in range(cfg["lbfgs_epochs"]):
         loss = optimizer_lbfgs.step(closure)
         if epoch % 100 == 0:
-            # L-BFGS closure might be called multiple times per step, 
-            # we report the values from the final closure call
             print(f"L-BFGS Epoch {epoch:3d} | Loss: {loss.item():.8f} "
-                  f"(PDE: {loss.pde:.8f}, BC: {loss.bc:.8f})")
+                  f"(PDE: {loss.pde:.8f}, BC: {loss.bc:.8f}, R: {loss.range:.8f})")
             
     return model
 
@@ -235,18 +255,20 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # High-Capacity configuration to solve Maximum Principle violations
+    # Final Breakthrough configuration: SIREN + Range Penalty
     config = {
-        "num_layers": 6,             # Even deeper
-        "hidden_dim": 64,            # Much wider for high-frequency details
-        "activation": "sine",        # Use SIREN for fractal complexity
-        "adam_epochs": 2000,         # More exploration
-        "lbfgs_epochs": 1000,        # Extended fine-tuning
-        "adam_points_domain": 3000, 
-        "adam_points_bc": 1000,      # Prioritize boundary resolution
-        "lbfgs_points_domain": 5000, 
+        "num_layers": 5,             
+        "hidden_dim": 64,            
+        "activation": "sine",
+        "omega": 5.0,                # Lower freq to prevent ringing
+        "adam_epochs": 3000,         # More time to settle
+        "lbfgs_epochs": 1500,        
+        "adam_points_domain": 2000, 
+        "adam_points_bc": 1500,      
+        "lbfgs_points_domain": 4000, 
         "lbfgs_points_bc": 2000,
-        "lambda_bc": 100.0,          # Stronger boundary penalty
+        "lambda_bc": 500.0,          
+        "lambda_range": 50.0,        # NEW: Explicit penalty for Maximum Principle violations
     }
 
     solve_nested_snowflakes_example(config=config)

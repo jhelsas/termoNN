@@ -4,7 +4,7 @@ import numpy as np
 
 class Sine(nn.Module):
     """Sine activation function with scaling for SIREN-like behavior."""
-    def __init__(self, omega=30.0):
+    def __init__(self, omega=1.0):
         super().__init__()
         self.omega = omega
     def forward(self, x):
@@ -15,15 +15,15 @@ class PINN(nn.Module):
     Enhanced PINN with support for SIREN (Sine) or Tanh activations.
     SIREN is preferred for complex geometries and higher-order derivatives.
     """
-    def __init__(self, input_dim=2, hidden_dim=20, output_dim=1, num_layers=4, activation='sine'):
+    def __init__(self, input_dim=2, hidden_dim=20, output_dim=1, num_layers=4, activation='sine', omega=30.0):
         super(PINN, self).__init__()
-        
+        self.omega = omega
         layers = []
         
         # First Layer
         layers.append(nn.Linear(input_dim, hidden_dim))
         if activation == 'sine':
-            layers.append(Sine(omega=30.0))
+            layers.append(Sine(omega=self.omega))
         else:
             layers.append(nn.Tanh())
             
@@ -31,7 +31,7 @@ class PINN(nn.Module):
         for _ in range(num_layers - 2):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             if activation == 'sine':
-                layers.append(Sine(omega=30.0))
+                layers.append(Sine(omega=self.omega))
             else:
                 layers.append(nn.Tanh())
             
@@ -54,8 +54,8 @@ class PINN(nn.Module):
                         layer.weight.uniform_(-1 / num_input, 1 / num_input)
                     else:
                         # Hidden layers
-                        layer.weight.uniform_(-np.sqrt(6 / num_input) / 30.0, 
-                                            np.sqrt(6 / num_input) / 30.0)
+                        layer.weight.uniform_(-np.sqrt(6 / num_input) / self.omega, 
+                                            np.sqrt(6 / num_input) / self.omega)
                     layer.bias.uniform_(-1e-6, 1e-6)
 
     def forward(self, x):

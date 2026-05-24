@@ -12,7 +12,7 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 - **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
 
 ### High-Level Architecture
-- **Model (`src/model.py`)**: A standard MLP using `Tanh` activations to ensure smooth higher-order derivatives.
+- **Model (`src/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition** for capturing multi-scale details.
 - **Physics (`src/physics.py`)**: Implements the Poisson/Laplace operators and Dirichlet boundary conditions.
 - **Utilities (`src/utils.py`)**: 
     - `PolygonDomain`: Handles complex geometries using ray-casting for point-in-polygon checks and rejection sampling for interior points.
@@ -85,14 +85,14 @@ The project supports domains defined by an outer polygon and multiple inner hole
 - **Point-in-Polygon**: Vectorized ray-casting algorithm implemented in PyTorch for seamless GPU acceleration.
 
 ### Poisson/Laplace Operator
-We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = f(x, y)$.
+We solve $\nabla^2 u = \frac{\partial^2 u}{\partial x^2} + \frac{\partial^2 u}{\partial y^2} = f(x, y)$, with an optional **Range Constraint** to enforce the Maximum Principle in high-gradient areas.
 - If $f=0$, we are solving the **Laplace Equation**.
 - If $f \neq 0$, we are solving the **Poisson Equation**.
 In PyTorch, this is achieved by double-calling `torch.autograd.grad`.
 
 ### Hybrid Optimization
 - **Adam**: Used initially to escape local minima and navigate the non-convex PINN loss landscape.
-- **L-BFGS**: Switched to for final convergence, as it uses second-order curvature information to find the precise physics solution.
+- **L-BFGS**: High-persistence second-order optimization with tight tolerances and adaptive history, used for final 'physics-snapping' and convergence.
 
 ---
 

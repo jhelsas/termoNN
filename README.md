@@ -11,10 +11,11 @@ A modular and production-ready implementation of a **Physics-Informed Neural Net
 This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs) on complex geometries. Unlike traditional solvers restricted to simple grids, this PINN implementation utilizes a Tensor-native polygon engine and a flexible physics loss to handle diverse steady-state problems.
 
 ### Key Features
-- **Complex Geometries**: Support for arbitrary polygons with multiple internal holes.
-- **Tensor-Native Geometry**: All geometric checks (Point-in-Polygon) and sampling are performed directly in PyTorch for maximum efficiency.
-- **Two-Stage Optimization**: Combines Adam for exploration and L-BFGS for high-precision convergence.
-- **Physics-Validated**: Robust testing suite (38+ tests) verifying residues against analytical solutions (Harmonic, Saddle, Linear).
+- **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
+- **Multi-frequency SIREN**: State-of-the-art architecture for capturing both global trends and high-frequency spatial details.
+- **Unified Constraints**: Combined PDE, Boundary, and Range losses to strictly enforce the Maximum Principle.
+- **Two-Stage Optimization**: High-persistence L-BFGS for sub-millimetric convergence.
+- **Physics-Validated**: Comprehensive testing suite (60+ tests) verifying residues against analytical solutions.
 
 ## 🛠️ Installation
 
@@ -45,7 +46,7 @@ python main.py
 After training, the model will save a contour plot of the solution to `solution.png`.
 
 ### Running Tests
-We maintain a comprehensive suite of 41+ unit, geometric, and integration tests:
+We maintain a comprehensive suite of 60+ unit, geometric, and integration tests:
 ```bash
 python -m unittest discover tests
 ```

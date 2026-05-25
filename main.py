@@ -68,28 +68,38 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     
     # Stage 1: Adam
     optimizer_adam = optim.Adam(model.parameters(), lr=cfg["adam_lr"])
+    # Tighter patience for faster adjustment
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer_adam, 'min', patience=200, factor=0.5)
+    
+    # Unified Resolution: Match Adam and L-BFGS to prevent loss jumps
+    n_points_d = cfg["lbfgs_points_domain"]
+    n_points_b = cfg["lbfgs_points_bc"]
     
     # Initialize points
-    x_domain, y_domain = generate_domain_data(cfg["adam_points_domain"], device=device, domain=domain)
+    x_domain, y_domain = generate_domain_data(n_points_d, device=device, domain=domain)
     
     print(f"--- Stage 1: Adam Optimization ({cfg['adam_epochs']} epochs) ---")
     for epoch in range(cfg["adam_epochs"]):
+        # Dynamic Boundary Weighting (Warmup)
+        # Gradually increase lambda_bc from 10.0 to the target cfg value
+        current_lambda_bc = min(cfg["lambda_bc"], 10.0 + (cfg["lambda_bc"] - 10.0) * (epoch / (cfg["adam_epochs"] * 0.5)))
+        
         # Periodic resampling
         if cfg["use_adaptive_sampling"] and epoch % cfg["adaptive_every"] == 0:
             x_domain, y_domain = generate_adaptive_domain_data(
-                model, cfg["adam_points_domain"], device=device, domain=domain, f_fn=f_fn, config=cfg
+                model, n_points_d, device=device, domain=domain, f_fn=f_fn, config=cfg
             )
         elif not cfg["use_adaptive_sampling"]:
             # Standard random resampling
-            x_domain, y_domain = generate_domain_data(cfg["adam_points_domain"], device=device, domain=domain)
+            x_domain, y_domain = generate_domain_data(n_points_d, device=device, domain=domain)
             
-        x_bc, y_bc, u_bc = generate_boundary_data(cfg["adam_points_bc"], device=device, domain=domain, bc_fn=bc_fn)
+        x_bc, y_bc, u_bc = generate_boundary_data(n_points_b, device=device, domain=domain, bc_fn=bc_fn)
         
         optimizer_adam.zero_grad()
         loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         
-        total_loss = loss_pde + cfg["lambda_bc"] * loss_bc
+        total_loss = loss_pde + current_lambda_bc * loss_bc
         
         if cfg["lambda_range"] > 0:
             # Predict on domain to check range
@@ -99,11 +109,16 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
             total_loss += cfg["lambda_range"] * loss_r
         
         total_loss.backward()
+        
+        # Numerical Safety: Tighter Gradient Clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
+        
         optimizer_adam.step()
+        scheduler.step(total_loss.detach())
         
         if epoch % 500 == 0:
             print(f"Adam Epoch {epoch:4d} | Loss: {total_loss.item():.6f} "
-                  f"(PDE: {loss_pde.item():.6f}, BC: {loss_bc.item():.6f})")
+                  f"(PDE: {loss_pde.item():.6f}, BC: {loss_bc.item():.6f}, L_bc: {current_lambda_bc:.1f})")
 
     # Stage 2: L-BFGS (Fine-tuning)
     print(f"--- Stage 2: L-BFGS Fine-tuning ({cfg['lbfgs_epochs']} iterations) ---")
@@ -275,22 +290,21 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # "Final Push" configuration with Adaptive Sampling (RAR)
+    # "Stability-First" configuration: Harmonizing frequencies and resolutions
     config = {
         "num_layers": 6,             
         "hidden_dim": 128,           
         "activation": "sine",
-        "omega": (1.0, 30.0),        
-        "adam_epochs": 2500,         
+        "omega": (1.0, 20.0),        # Reduced max freq to prevent PDE spikes (9800 -> sanity)
+        "adam_epochs": 4000,         # More Adam time to find global structure
         "lbfgs_epochs": 1500,        
-        "adam_points_domain": 2000, 
-        "adam_points_bc": 1500,      
-        "lbfgs_points_domain": 5000, 
-        "lbfgs_points_bc": 3000,
+        "adam_lr": 0.0005,           
+        "lbfgs_points_domain": 4000, 
+        "lbfgs_points_bc": 2000,
         "lambda_bc": 500.0,          
-        "lambda_range": 500.0,       
-        "use_adaptive_sampling": True, # Focus on high-error regions (fractal corners)
-        "adaptive_every": 200,         # Resample error-weighted points every 200 epochs
+        "lambda_range": 200.0,       # Significant pressure to squash 1.36 overshoot
+        "use_adaptive_sampling": True, 
+        "adaptive_every": 200,         
     }
 
     solve_nested_snowflakes_example(config=config)

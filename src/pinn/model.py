@@ -1,24 +1,32 @@
 import torch
+
+
 import torch.nn as nn
 import numpy as np
 
 class Sine(nn.Module):
-    """Sine activation function with support for per-channel frequencies."""
-    def __init__(self, omega=1.0):
+    """Sine activation function with support for per-channel frequencies and learnable scaling."""
+    def __init__(self, omega=1.0, adaptive=False):
         super().__init__()
         # omega can be a scalar or a (channels,) tensor
         self.register_buffer("omega", torch.as_tensor(omega))
         
+        # Learnable scaling factor (a in sin(a * omega * x))
+        if adaptive:
+            self.a = nn.Parameter(torch.ones(1))
+        else:
+            self.register_buffer("a", torch.ones(1))
+        
     def forward(self, x):
-        return torch.sin(self.omega * x)
+        return torch.sin(self.a * self.omega * x)
 
 class PINN(nn.Module):
     """
     Enhanced PINN with support for SIREN (Sine) or Tanh activations.
-    Supports Multi-frequency SIREN to capture both global trends and fractal details.
+    Supports Multi-frequency SIREN and Self-Adaptive Activations (learnable scaling).
     """
     def __init__(self, input_dim=2, hidden_dim=20, output_dim=1, num_layers=4, 
-                 activation='sine', omega=30.0):
+                 activation='sine', omega=30.0, adaptive_activations=False):
         super(PINN, self).__init__()
         self.activation = activation
         
@@ -37,7 +45,7 @@ class PINN(nn.Module):
         # First Layer
         layers.append(nn.Linear(input_dim, hidden_dim))
         if activation == 'sine':
-            layers.append(Sine(omega=self.omega_val))
+            layers.append(Sine(omega=self.omega_val, adaptive=adaptive_activations))
         else:
             layers.append(nn.Tanh())
             
@@ -46,7 +54,7 @@ class PINN(nn.Module):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             if activation == 'sine':
                 # Use same multi-frequency distribution for all hidden layers
-                layers.append(Sine(omega=self.omega_val))
+                layers.append(Sine(omega=self.omega_val, adaptive=adaptive_activations))
             else:
                 layers.append(nn.Tanh())
             

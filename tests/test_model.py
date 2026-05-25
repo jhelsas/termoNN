@@ -170,3 +170,13 @@ class TestModel(PINNTestCase):
         for p in model.parameters():
             if p.requires_grad and p.grad is not None:
                 self.assertTrue(torch.isfinite(p.grad).all())
+
+    def test_adaptive_activations_optimization(self):
+        """Architecture Validation: Ensures adaptive activation parameters are trackable."""
+        model = PINN(activation='sine', adaptive_activations=True)
+        # Check if parameters with 'a' in name exist
+        adaptive_params = [p for n, p in model.named_parameters() if '.a' in n]
+        self.assertGreater(len(adaptive_params), 0)
+        for p in adaptive_params:
+            self.assertEqual(p.item(), 1.0)
+            self.assertTrue(p.requires_grad)

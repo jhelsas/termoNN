@@ -5,7 +5,7 @@ import numpy as np
 import warnings
 from src.pinn.model import PINN
 from src.pinn.physics import laplace_loss, boundary_loss, poisson_loss, range_loss
-from src.core.data import generate_domain_data, generate_boundary_data, set_seed, get_device
+from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
 from src.core.geometry import PolygonDomain, generate_koch_snowflake
 
 # Suppress benign CUDA/cuBLAS context warnings
@@ -31,6 +31,8 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         "lbfgs_points_bc": 600,
         "lambda_bc": 10.0,
         "lambda_range": 0.0,  # Penalty for range violations (off by default)
+        "use_adaptive_sampling": False, # RAR logic
+        "adaptive_every": 100,          # Frequency of RAR resampling
         "seed": 42
     }
     
@@ -67,9 +69,20 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
     # Stage 1: Adam
     optimizer_adam = optim.Adam(model.parameters(), lr=cfg["adam_lr"])
     
+    # Initialize points
+    x_domain, y_domain = generate_domain_data(cfg["adam_points_domain"], device=device, domain=domain)
+    
     print(f"--- Stage 1: Adam Optimization ({cfg['adam_epochs']} epochs) ---")
     for epoch in range(cfg["adam_epochs"]):
-        x_domain, y_domain = generate_domain_data(cfg["adam_points_domain"], device=device, domain=domain)
+        # Periodic resampling
+        if cfg["use_adaptive_sampling"] and epoch % cfg["adaptive_every"] == 0:
+            x_domain, y_domain = generate_adaptive_domain_data(
+                model, cfg["adam_points_domain"], device=device, domain=domain, f_fn=f_fn, config=cfg
+            )
+        elif not cfg["use_adaptive_sampling"]:
+            # Standard random resampling
+            x_domain, y_domain = generate_domain_data(cfg["adam_points_domain"], device=device, domain=domain)
+            
         x_bc, y_bc, u_bc = generate_boundary_data(cfg["adam_points_bc"], device=device, domain=domain, bc_fn=bc_fn)
         
         optimizer_adam.zero_grad()
@@ -262,20 +275,22 @@ def solve_nested_snowflakes_example(config=None):
     print("Nested fractal solution saved to nested_snowflakes.png")
 
 if __name__ == "__main__":
-    # "Final Push" configuration: Spectral Balance + Heavy Penalties
+    # "Final Push" configuration with Adaptive Sampling (RAR)
     config = {
         "num_layers": 6,             
         "hidden_dim": 128,           
         "activation": "sine",
-        "omega": (1.0, 30.0),        # Tighter frequency range for stability
+        "omega": (1.0, 30.0),        
         "adam_epochs": 2500,         
         "lbfgs_epochs": 1500,        
         "adam_points_domain": 2000, 
         "adam_points_bc": 1500,      
         "lbfgs_points_domain": 5000, 
         "lbfgs_points_bc": 3000,
-        "lambda_bc": 500.0,          # Strong boundary anchor
-        "lambda_range": 500.0,       # Strong range anchor to squash ringing
+        "lambda_bc": 500.0,          
+        "lambda_range": 500.0,       
+        "use_adaptive_sampling": True, # Focus on high-error regions (fractal corners)
+        "adaptive_every": 200,         # Resample error-weighted points every 200 epochs
     }
 
     solve_nested_snowflakes_example(config=config)

@@ -32,6 +32,50 @@ def generate_domain_data(n_points=1000, device='cpu', domain=None):
     
     return domain.sample_interior(n_points, device)
 
+def generate_adaptive_domain_data(model, n_points, device='cpu', domain=None, f_fn=None, config=None):
+    """
+    Residual-based Adaptive Refinement (RAR).
+    Samples a large pool of candidates and selects points with the highest PDE residue.
+    """
+    if domain is None:
+        return generate_domain_data(n_points, device=device)
+    
+    # 1. Sample a large candidate pool (e.g., 5x the target points)
+    n_candidates = n_points * 5
+    x_cand, y_cand = domain.sample_interior(n_candidates, device=device)
+    
+    # 2. Evaluate PDE residue at candidates
+    model.eval()
+    # We need gradients to compute the residue, but we don't want to update weights here
+    with torch.set_grad_enabled(True):
+        coords = torch.stack([x_cand, y_cand], dim=1).requires_grad_(True)
+        u = model(coords)
+        
+        # Calculate residue (simplified version of poisson_loss logic)
+        # Handle cases where model might not have grad path (e.g. constant models in tests)
+        if not u.requires_grad:
+            residue = torch.zeros_like(x_cand)
+        else:
+            grads = torch.autograd.grad(u, coords, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+            u_x, u_y = grads[:, 0], grads[:, 1]
+            
+            u_xx = torch.autograd.grad(u_x, coords, grad_outputs=torch.ones_like(u_x), create_graph=True)[0][:, 0]
+            u_yy = torch.autograd.grad(u_y, coords, grad_outputs=torch.ones_like(u_y), create_graph=True)[0][:, 1]
+            
+            f = f_fn(x_cand, y_cand) if f_fn is not None else torch.zeros_like(u_xx)
+            residue = torch.abs(u_xx + u_yy - f.squeeze())
+        
+        # Also include range violations in the error metric if lambda_range is active
+        if config and config.get("lambda_range", 0) > 0:
+            u_val = u.detach()
+            range_err = torch.relu(u_val - 1.0) + torch.relu(0.0 - u_val)
+            residue += config["lambda_range"] * range_err.squeeze()
+
+    # 3. Select Top-K points with highest error
+    _, indices = torch.topk(residue, n_points)
+    
+    return x_cand[indices].detach(), y_cand[indices].detach()
+
 def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
     """
     Generates boundary points and target values.

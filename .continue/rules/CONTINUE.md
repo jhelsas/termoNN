@@ -12,12 +12,16 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 - **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
 
 ### High-Level Architecture
-- **Model (`src/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition** for capturing multi-scale details.
-- **Physics (`src/physics.py`)**: Implements the Poisson/Laplace operators and Dirichlet boundary conditions.
-- **Utilities (`src/utils.py`)**: 
-    - `PolygonDomain`: Handles complex geometries using ray-casting for point-in-polygon checks and rejection sampling for interior points.
-    - Data sampling and hardware abstraction.
-- **Main (`main.py`)**: A production-ready training pipeline combining Adam (exploration) and L-BFGS (exploitation).
+- **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition** and **Self-Adaptive** learnable scales.
+- **Physics (`src/pinn/physics.py`)**: Implements the Poisson/Laplace operators, Dirichlet boundary conditions, and the Range/Maximum Principle penalty.
+- **Solver (`src/pinn/solver.py`)**: Implements the two-stage (Adam + L-BFGS) optimization with self-adaptive loss weighting and residual-based refinement (RAR).
+- **Core (`src/core/`)**: 
+    - `geometry.py`: Handles complex geometries using ray-casting. Includes a conditional CPU fallback for stability on Apple Silicon.
+    - `data.py`: Sampling, hardware abstraction (CUDA/MPS), and reproducibility.
+    - `fem.py`: Finite Element Solver wrapper using `scikit-fem` for ground-truth verification.
+    - `viz.py`: High-resolution plotting and masking.
+- **Main (`main.py`)**: Production-ready training pipeline.
+- **Comparison (`comparison_results.py`)**: End-to-end benchmarking tool for PINN vs FEM.
 
 ---
 
@@ -27,34 +31,49 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 - Python 3.8 or higher.
 - `pip` and `venv`.
 
-### Installation
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+### Environment Setup (CRITICAL)
+Always work within a virtual environment to ensure dependency isolation:
+1. **Initialize/Check**:
+   ```bash
+   # Look for existing venv
+   ls -d venv
+   # Create if missing
+   python3 -m venv venv
+   ```
+2. **Activate**:
+   ```bash
+   source venv/bin/activate
+   ```
+3. **Install/Sync Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   # For FEM support:
+   pip install scikit-fem
+   ```
 
 ### Basic Usage
 ```bash
 # Run training and visualization
 python main.py
 
-# Run tests
+# Run PINN vs FEM Benchmarks
+python comparison_results.py
+
+# Run full test suite (70+ tests)
 python -m unittest discover tests
 ```
 
 ---
 
 ## Project Structure
-- `src/`:
-    - `model.py`: MLP architecture.
-    - `physics.py`: PDE and BC loss functions.
-    - `utils.py`: Sampling and hardware abstraction.
+- `src/pinn/`: Neural network and PDE logic.
+- `src/core/`: Geometric engine, FEM solver, and utilities.
 - `tests/`:
     - `base_test.py`: Shared testing logic and assertions.
-    - `test_model.py`: Unit tests for the neural network.
-    - `test_physics.py`: Validation of physical constraints.
-    - `test_utils.py`: Verification of data generation.
+    - `test_model.py` / `test_model_advanced.py`: Model unit tests.
+    - `test_physics.py` / `test_physics_advanced.py`: Physical constraint validation.
+    - `test_geometry.py`: Point-in-polygon and sampling verification.
+    - `test_fem.py`: PINN vs FEM verification tests.
     - `test_integration.py`: End-to-end workflow validation.
 
 ---
@@ -62,17 +81,19 @@ python -m unittest discover tests
 ## Development Workflow
 
 ### Coding Standards (Staff+ Engineer Perspective)
-1. **Differentiability**: Always use smooth activations (`Tanh`, `Sine`, `ELU`). Avoid `ReLU` for PINNs solving second-order PDEs.
+1. **Differentiability**: Always use smooth activations (`Tanh`, `Sine`). `Sine` is preferred for second-order PDEs.
 2. **Deterministic Sampling**: Always use the `set_seed` utility to ensure experiments are reproducible.
-3. **Device Awareness**: Always use `get_device()` to support both CPU and GPU transparently.
-4. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True` to handle edge cases in the computational graph.
+3. **Device Awareness**: Use `get_device()`. We support CUDA (NVIDIA) and MPS (Apple Silicon).
+4. **Hardware Stability Workaround**: The ray-casting engine in `geometry.py` uses a **conditional CPU fallback** for the `is_inside` check when running on `mps` devices to avoid branching-related numerical instabilities. Keep this logic in place for cross-platform reliability.
+5. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True`.
 
 ### Testing Approach
 Our test suite follows a "Physics-First" verification strategy:
 - **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).
 - **Geometric Validation**: Verifies ray-casting (inside/outside) and boundary sampling for complex polygons and holes.
 - **Physics Validation**: Verify the Laplace residue against analytical solutions (Linear, Quad, Harmonic).
-- **Integration Tests**: Ensure the optimizer successfully reduces the loss on complex domains (e.g., L-shaped domains).
+- **FEM Benchmarking**: Continuous verification of PINN solutions against a traditional Finite Element solver.
+- **Integration Tests**: Ensure the optimizer successfully reduces the loss on complex domains.
 
 ---
 

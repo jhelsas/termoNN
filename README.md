@@ -8,14 +8,17 @@ A modular and production-ready implementation of a **Physics-Informed Neural Net
 
 ## 🚀 Overview
 
-This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs) on complex geometries. Unlike traditional solvers restricted to simple grids, this PINN implementation utilizes a Tensor-native polygon engine and a flexible physics loss to handle diverse steady-state problems.
+This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs) on complex geometries. Unlike traditional solvers restricted to simple grids, this PINN implementation utilizes a Tensor-native polygon engine and a flexible physics loss to handle diverse steady-state problems. It also includes a **Finite Element Method (FEM)** comparison suite for high-fidelity verification.
 
 ### Key Features
 - **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
 - **Multi-frequency SIREN**: State-of-the-art architecture for capturing both global trends and high-frequency spatial details.
 - **Unified Constraints**: Combined PDE, Boundary, and Range losses to strictly enforce the Maximum Principle.
-- **Two-Stage Optimization**: High-persistence L-BFGS for sub-millimetric convergence.
-- **Physics-Validated**: Comprehensive testing suite (60+ tests) verifying residues against analytical solutions.
+- **Two-Stage Optimization**: Hybrid Adam and high-persistence L-BFGS for sub-millimetric convergence.
+- **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses during training.
+- **FEM Verification**: Built-in integration with `scikit-fem` to validate PINN results against traditional numerical methods.
+- **Hardware Agnostic**: Full support for CUDA (NVIDIA), MPS (Apple Silicon), and CPU backends.
+- **Physics-Validated**: Comprehensive testing suite (70+ tests) verifying residues against analytical solutions.
 
 ## 🛠️ Installation
 
@@ -36,7 +39,7 @@ This project demonstrates how to use deep learning and automatic differentiation
    pip install -r requirements.txt
    ```
 
-## 📈 Usage
+## 📉 Usage
 
 ### Training the Model
 To start the training process and generate the solution plot:
@@ -45,8 +48,14 @@ python main.py
 ```
 After training, the model will save a contour plot of the solution to `solution.png`.
 
+### PINN vs FEM Comparison
+To solve a complex geometry (like a nested snowflake annulus) with both PINN and FEM and compare the error:
+```bash
+python comparison_results.py
+```
+
 ### Running Tests
-We maintain a comprehensive suite of 60+ unit, geometric, and integration tests:
+We maintain a comprehensive suite of 70+ unit, geometric, physics, and integration tests:
 ```bash
 python -m unittest discover tests
 ```
@@ -54,11 +63,11 @@ python -m unittest discover tests
 ## 🏗️ Project Structure
 
 - `src/`: Core logic modules.
-  - `model.py`: MLP architecture definition.
-  - `physics.py`: Laplace operator and BC loss implementations using `torch.autograd`.
-  - `utils.py`: Reproducibility settings and data sampling.
+  - `pinn/`: PINN specific modules (model, physics, solver).
+  - `core/`: Shared core modules (data, geometry, viz, fem).
 - `tests/`: Automated test suite for physical and architectural validation.
 - `main.py`: Entry point for training and visualization.
+- `comparison_results.py`: High-fidelity PINN vs FEM comparison tool.
 - `CONTINUE.md`: Detailed project guide and developer context (located in `.continue/rules/`).
 
 ## 🧪 Key Concepts: The Physics Loss

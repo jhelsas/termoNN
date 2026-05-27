@@ -2,10 +2,11 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from src.core.geometry import PolygonDomain, generate_koch_snowflake
-from src.core.fem import solve_fem, interpolate_fem
+from src.fem.solver import solve_fem
 from src.pinn.solver import train
 from src.core.viz import plot_results
 from src.core.data import get_device
+from scipy.interpolate import griddata
 
 class FEMWrapper(torch.nn.Module):
     """Wraps FEM solution to be used by PINN visualization tools."""
@@ -19,11 +20,16 @@ class FEMWrapper(torch.nn.Module):
 
     def forward(self, coords):
         # coords is (N, 2)
-        x, y = coords[:, 0], coords[:, 1]
-        u_interp = interpolate_fem(self.mesh, self.u_fem, x, y)
+        x, y = coords[:, 0].cpu().numpy(), coords[:, 1].cpu().numpy()
+        # Use griddata for interpolation
+        u_interp = griddata(self.mesh.p.T, self.u_fem, (x, y), method='linear')
         # Convert NaNs to 0 for visualization outside domain (viz.py masks anyway)
         u_interp = np.nan_to_num(u_interp)
         return torch.tensor(u_interp, dtype=torch.float32, device=coords.device).unsqueeze(1)
+
+    @property
+    def device(self):
+        return self.dummy.device
 
 def run_snowflake_fem_plot():
     print("\n--- FEM on Koch Snowflake ---")
@@ -34,7 +40,7 @@ def run_snowflake_fem_plot():
         return (torch.sin(torch.pi * (x-0.5)) * torch.cosh(torch.pi * (y-0.5))).unsqueeze(1)
 
     mesh, u_fem = solve_fem(domain, bc_harmonic, resolution=60)
-    fem_model = FEMWrapper(mesh, u_fem, device=get_device())
+    fem_model = FEMWrapper(mesh, u_fem, device=get_device()).to(get_device())
     
     plot_results(fem_model, domain=domain, filename='fem_snowflake.png')
     print("FEM result saved to fem_snowflake.png")
@@ -56,7 +62,7 @@ def run_nested_comparison():
     # 1. FEM Solution
     print("Solving with FEM...")
     mesh, u_fem = solve_fem(domain, bc_nested, resolution=30)
-    fem_model = FEMWrapper(mesh, u_fem, device=get_device())
+    fem_model = FEMWrapper(mesh, u_fem, device=get_device()).to(get_device())
     plot_results(fem_model, domain=domain, filename='nested_fem.png', resolution=100)
 
     # 2. PINN Solution
@@ -74,10 +80,10 @@ def run_nested_comparison():
 
     # 3. Error Comparison
     x_test, y_test = domain.sample_interior(500)
-    coords = torch.stack([x_test, y_test], dim=1)
+    coords = torch.stack([x_test, y_test], dim=1).to(get_device())
     
     u_pinn = pinn_model(coords).detach().cpu().numpy().flatten()
-    u_fem_interp = interpolate_fem(mesh, u_fem, x_test, y_test)
+    u_fem_interp = griddata(mesh.p.T, u_fem, (x_test.cpu().numpy(), y_test.cpu().numpy()), method='linear')
     
     mask = ~np.isnan(u_fem_interp)
     u_pinn_m = u_pinn[mask]

@@ -67,19 +67,23 @@ def run_nested_comparison():
 
     # 2. PINN Solution
     print("Solving with PINN...")
+    # creative configuration: Spectral SIREN with Distributed frequencies
+    # AND Boundary Gradient Loss to suppress overshoot
     config = {
-        "num_layers": 5,
-        "hidden_dim": 128,
+        "num_layers": 4,
+        "hidden_dim": 64,
         "activation": "sine",
-        "omega": 30.0,
+        "use_fourier_features": False, # Fourier features were causing instability
+        "omega": (5.0, 30.0),
         "adam_epochs": 1500,
-        "lbfgs_epochs": 400,
-        "lambda_bc": 400.0,
-        "lambda_range": 100.0,       # Enforce Maximum Principle
-        "use_adaptive_sampling": True, 
+        "lbfgs_epochs": 600,
+        "lambda_bc": 200.0,
+        "lambda_grad_bc": 50.0,      # NEW FEATURE: Penalize derivative along boundary
+        "lambda_range": 0.0,
+        "use_adaptive_sampling": True,
         "adaptive_every": 200,
-        "use_self_adaptive_weights": True,
-        "adaptive_weight_every": 100,
+        "use_self_adaptive_weights": False,
+        "seed": 42
     }
     pinn_model = train(domain=domain, bc_fn=bc_nested, config=config)
     plot_results(pinn_model, domain=domain, filename='nested_pinn.png', resolution=250)

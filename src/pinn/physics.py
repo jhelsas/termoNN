@@ -78,6 +78,32 @@ def boundary_loss(model: Callable[[torch.Tensor], torch.Tensor],
     u_pred = model(coords)
     return torch.mean((u_pred - u_bc)**2)
 
+def boundary_gradient_loss(model: torch.nn.Module, 
+                           x_bc: torch.Tensor, 
+                           y_bc: torch.Tensor,
+                           nx: torch.Tensor,
+                           ny: torch.Tensor) -> torch.Tensor:
+    """
+    Penalizes the tangential derivative at the boundary.
+    This forces the solution to be 'flat' along the boundary, reducing overshoot.
+    
+    Args:
+        nx, ny: components of the normal vector at each boundary point.
+    """
+    coords = torch.stack([x_bc, y_bc], dim=1).requires_grad_(True)
+    u = model(coords)
+    
+    grads = torch.autograd.grad(
+        u, coords, grad_outputs=torch.ones_like(u), create_graph=True
+    )[0]
+    u_x, u_y = grads[:, 0], grads[:, 1]
+    
+    # Tangent vector is (-ny, nx)
+    tx, ty = -ny, nx
+    u_tangent = u_x * tx + u_y * ty
+    
+    return torch.mean(u_tangent**2)
+
 def range_loss(u: torch.Tensor, min_val: float = 0.0, max_val: float = 1.0) -> torch.Tensor:
     """
     Penalizes values that violate the Maximum Principle (staying within [min, max]).

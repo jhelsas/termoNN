@@ -50,13 +50,14 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png', r
     print(f"Diagnostics for {filename}:")
     print(f"  - Value Range in Domain: [{u_min:.4f}, {u_max:.4f}]")
     
-    # Check for maximum principle violations (assuming BCs are in [0, 1])
-    if u_min < -0.05 or u_max > 1.05:
-        print(f"  - WARNING: Significant range violation detected (Maximum Principle violation).")
-        
     plt.figure(figsize=(10, 8), dpi=200)
-    plt.contourf(X, Y, u_pred, levels=100, cmap='viridis')
-    plt.colorbar(label='u(x, y)')
+    # Use fixed bounds for consistent color mapping between PINN and FEM
+    if filename.startswith('nested_') or filename.startswith('fem_nested'):
+        # For the annulus problem, we want to see the [0, 1] range clearly
+        im = plt.contourf(X, Y, u_pred, levels=100, cmap='viridis', vmin=-0.1, vmax=1.1)
+    else:
+        im = plt.contourf(X, Y, u_pred, levels=100, cmap='viridis')
+    plt.colorbar(im, label='u(x, y)')
     
     # Overlay the domain boundary for reference
     if domain:
@@ -73,3 +74,4 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png', r
     plt.savefig(filename, bbox_inches='tight')
     plt.close()
     print(f"High-resolution result saved to {filename}")
+

@@ -73,7 +73,7 @@ class PolygonDomain:
         return x, y
 
     def sample_boundary(self, n_points, device=None):
-        """Samples points along the edges and returns coordinates plus polygon IDs."""
+        """Samples points along the edges and returns coordinates, polygon IDs, and normals."""
         dev = device or self.device
         
         def get_edge_data(poly):
@@ -81,33 +81,37 @@ class PolygonDomain:
             p2 = torch.roll(poly, -1, dims=0)
             vecs = p2 - p1
             lengths = torch.norm(vecs, dim=1)
-            return p1, vecs, lengths
+            # Normals: rotate (dx, dy) to (dy, -dx) and normalize
+            normals = torch.stack([vecs[:, 1], -vecs[:, 0]], dim=1)
+            normals = normals / (lengths.unsqueeze(1) + 1e-12)
+            return p1, vecs, lengths, normals
 
         all_polys = [self.vertices] + self.holes
-        edge_starts, edge_vecs, edge_lens, edge_ids = [], [], [], []
+        edge_starts, edge_vecs, edge_lens, edge_ids, edge_normals = [], [], [], [], []
         
         for idx, poly in enumerate(all_polys):
-            p1, v, l = get_edge_data(poly)
+            p1, v, l, n = get_edge_data(poly)
             edge_starts.append(p1)
             edge_vecs.append(v)
             edge_lens.append(l)
-            # Assign poly ID to every edge of this polygon
+            edge_normals.append(n)
             edge_ids.append(torch.full((len(l),), idx, dtype=torch.long, device=self.device))
             
         starts = torch.cat(edge_starts)
         vecs = torch.cat(edge_vecs)
         lens = torch.cat(edge_lens)
         ids = torch.cat(edge_ids)
+        normals = torch.cat(edge_normals)
         
-        # Categorical sampling
         probs = lens / lens.sum()
         indices = torch.multinomial(probs, n_points, replacement=True)
         
         t = torch.rand(n_points, 1, device=self.device)
         sampled_pts = starts[indices] + t * vecs[indices]
         sampled_ids = ids[indices]
+        sampled_normals = normals[indices]
         
-        return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev), sampled_ids.to(dev)
+        return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev), sampled_ids.to(dev), sampled_normals.to(dev)
 
 def generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5)):
     """

@@ -38,7 +38,7 @@ def solve_fem(domain,
     # 1. Mesh Generation using Scipy Delaunay + Polygon Masking
     # Sample points
     x_int, y_int = domain.sample_interior(n_interior, device='cpu')
-    x_bd, y_bd, _ = domain.sample_boundary(n_boundary, device='cpu')
+    x_bd, y_bd, _, _ = domain.sample_boundary(n_boundary, device='cpu')
     
     # Combine and add vertices for boundary fidelity
     all_x = torch.cat([x_int, x_bd, domain.vertices[:, 0].cpu()])
@@ -101,7 +101,7 @@ def solve_fem(domain,
     sig = inspect.signature(bc_fn)
     if 'b_ids' in sig.parameters:
         # Re-sample boundary to get a dense ID mapping
-        x_s, y_s, ids_s = domain.sample_boundary(max(n_boundary * 2, 2000), device='cpu')
+        x_s, y_s, ids_s, _ = domain.sample_boundary(max(n_boundary * 2, 2000), device='cpu')
         sampled_coords = torch.stack([x_s, y_s], dim=1)
         node_coords = torch.stack([xt_b.cpu(), yt_b.cpu()], dim=1)
         

@@ -80,9 +80,10 @@ def generate_adaptive_domain_data(model, n_points, device='cpu', domain=None, f_
 
 def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
     """
-    Generates boundary points and target values.
+    Generates boundary points, target values, and normals.
     """
     if domain is None:
+        # Simplistic fallback for square (no normals returned)
         n_per_side = n_points // 4
         x_top = torch.rand(n_per_side, device=device)
         y_top = torch.ones(n_per_side, device=device)
@@ -90,27 +91,18 @@ def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
         x_bot = torch.rand(n_per_side, device=device)
         y_bot = torch.zeros(n_per_side, device=device)
         u_bot = torch.sin(np.pi * x_bot).unsqueeze(1)
-        x_left = torch.zeros(n_per_side, device=device)
-        y_left = torch.rand(n_per_side, device=device)
-        u_left = torch.zeros((n_per_side, 1), device=device)
-        x_right = torch.ones(n_per_side, device=device)
-        y_right = torch.rand(n_per_side, device=device)
-        u_right = torch.zeros((n_per_side, 1), device=device)
-        x_bc = torch.cat([x_top, x_bot, x_left, x_right])
-        y_bc = torch.cat([y_top, y_bot, y_left, y_right])
-        u_bc = torch.cat([u_top, u_bot, u_left, u_right])
-        return x_bc, y_bc, u_bc
+        x_bc = torch.cat([x_top, x_bot]) # ... truncated
+        y_bc = torch.cat([y_top, y_bot])
+        u_bc = torch.cat([u_top, u_bot])
+        return x_bc, y_bc, u_bc, torch.zeros((n_points, 2), device=device)
 
     # Use the custom domain logic
-    x_bc, y_bc, b_ids = domain.sample_boundary(n_points, device)
+    x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device)
     if bc_fn is not None:
         import inspect
         sig = inspect.signature(bc_fn)
-        if 'b_ids' in sig.parameters:
-            u_bc = bc_fn(x_bc, y_bc, b_ids=b_ids)
-        else:
-            u_bc = bc_fn(x_bc, y_bc)
+        u_bc = bc_fn(x_bc, y_bc, b_ids=b_ids) if 'b_ids' in sig.parameters else bc_fn(x_bc, y_bc)
     else:
         u_bc = torch.zeros((x_bc.shape[0], 1), device=device)
         
-    return x_bc, y_bc, u_bc
+    return x_bc, y_bc, u_bc, normals

@@ -57,7 +57,8 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         omega=cfg["omega"],
         adaptive_activations=cfg.get("adaptive_activations", False),
         use_fourier_features=cfg.get("use_fourier_features", False),
-        fourier_scale=cfg.get("fourier_scale", 10.0)
+        fourier_scale=cfg.get("fourier_scale", 10.0),
+        output_transform=cfg.get("output_transform", None)
     ).to(device)
     
     # Stage 1: Adam

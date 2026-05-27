@@ -63,13 +63,13 @@ class TestConsistency(PINNTestCase):
         from src.pinn.model import PINN
         
         # Scalar
-        m1 = PINN(omega=30.0)
-        self.assertTrue(torch.all(m1.net[1].omega == 30.0))
+        m1 = PINN(omega=30.0, use_fourier_features=False)
+        self.assertTrue(torch.all(m1.act[0].omega == 30.0))
         
         # Tuple (Range)
-        m2 = PINN(omega=(1.0, 30.0), hidden_dim=10)
-        self.assertEqual(m2.net[1].omega.shape, (10,))
-        self.assertLess(m2.net[1].omega[0], m2.net[1].omega[-1])
+        m2 = PINN(omega=(1.0, 30.0), hidden_dim=10, use_fourier_features=False)
+        self.assertEqual(m2.act[0].omega.shape, (10,))
+        self.assertLess(m2.act[0].omega[0], m2.act[0].omega[-1])
 
     def test_adaptive_weights_sanity(self):
         """Consistency: Verifies that self-adaptive weighting adjusts lambda_bc."""

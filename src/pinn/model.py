@@ -22,67 +22,88 @@ class Sine(nn.Module):
 
 class PINN(nn.Module):
     """
-    Enhanced PINN with support for SIREN (Sine) or Tanh activations.
-    Supports Multi-frequency SIREN and Self-Adaptive Activations (learnable scaling).
+    Advanced PINN with Fourier Feature Mapping and Residual Skip Connections.
+    Designed for high-accuracy field reconstruction on fractal domains.
     """
-    def __init__(self, input_dim=2, hidden_dim=20, output_dim=1, num_layers=4, 
-                 activation='sine', omega=30.0, adaptive_activations=False):
+    def __init__(self, input_dim=2, hidden_dim=64, output_dim=1, num_layers=4, 
+                 activation='sine', omega=30.0, adaptive_activations=False,
+                 use_fourier_features=True, fourier_scale=10.0,
+                 output_transform=None):
         super(PINN, self).__init__()
         self.activation = activation
+        self.use_fourier_features = use_fourier_features
+        self.output_transform = output_transform
         
-        # Determine omega for each channel (multi-frequency support)
+        # 1. Fourier Feature Mapping (Input Embedding)
+        # This allows the network to capture high-frequency fractal details
+        mapping_dim = hidden_dim // 2
+        if use_fourier_features:
+            self.register_buffer("B", torch.randn(input_dim, mapping_dim) * fourier_scale)
+            current_input_dim = mapping_dim * 2
+        else:
+            current_input_dim = input_dim
+
+        # 2. Determine omega distribution
         if isinstance(omega, (list, tuple)):
-            # If omega is (min, max), distribute frequencies across hidden units
             omega_min, omega_max = omega
-            # Create a distribution of frequencies
-            freqs = torch.linspace(omega_min, omega_max, hidden_dim)
-            self.omega_val = freqs
+            self.omega_val = torch.linspace(omega_min, omega_max, hidden_dim)
         else:
             self.omega_val = torch.full((hidden_dim,), float(omega))
             
-        layers = []
+        # 3. Layer Construction
+        self.layers = nn.ModuleList()
         
-        # First Layer
-        layers.append(nn.Linear(input_dim, hidden_dim))
-        if activation == 'sine':
-            layers.append(Sine(omega=self.omega_val, adaptive=adaptive_activations))
-        else:
-            layers.append(nn.Tanh())
+        # First layer
+        self.layers.append(nn.Linear(current_input_dim, hidden_dim))
+        
+        # Hidden layers with Residual support
+        for _ in range(num_layers - 1):
+            self.layers.append(nn.Linear(hidden_dim, hidden_dim))
             
-        # Hidden Layers
-        for _ in range(num_layers - 2):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
+        # Output layer
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        
+        # Activation modules
+        self.act = nn.ModuleList()
+        for _ in range(num_layers):
             if activation == 'sine':
-                # Use same multi-frequency distribution for all hidden layers
-                layers.append(Sine(omega=self.omega_val, adaptive=adaptive_activations))
+                self.act.append(Sine(omega=self.omega_val, adaptive=adaptive_activations))
             else:
-                layers.append(nn.Tanh())
-            
-        # Output Layer
-        layers.append(nn.Linear(hidden_dim, output_dim))
-        self.net = nn.Sequential(*layers)
+                self.act.append(nn.Tanh())
         
         if activation == 'sine':
             self._init_siren()
 
     def _init_siren(self):
-        """Standard SIREN initialization scheme adapted for multi-frequency."""
         with torch.no_grad():
-            for i, layer in enumerate(self.net):
-                if isinstance(layer, nn.Linear):
-                    num_input = layer.weight.size(-1)
-                    # For multi-frequency, we use the average omega for scaling the init
-                    avg_omega = self.omega_val.mean().item()
-                    
-                    if i == 0:
-                        layer.weight.uniform_(-1 / num_input, 1 / num_input)
-                    else:
-                        layer.weight.uniform_(-np.sqrt(6 / num_input) / avg_omega, 
-                                            np.sqrt(6 / num_input) / avg_omega)
-                    layer.bias.uniform_(-1e-6, 1e-6)
+            for layer in self.layers:
+                num_input = layer.weight.size(-1)
+                avg_omega = self.omega_val.mean().item()
+                layer.weight.uniform_(-np.sqrt(6 / num_input) / avg_omega, 
+                                    np.sqrt(6 / num_input) / avg_omega)
+                layer.bias.uniform_(-1e-6, 1e-6)
 
     def forward(self, x):
-        return self.net(x)
+        # Apply Fourier Mapping
+        if self.use_fourier_features:
+            x_proj = 2 * np.pi * x @ self.B
+            x = torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+            
+        # Forward through layers with Skip Connections
+        h = self.act[0](self.layers[0](x))
+        for i in range(1, len(self.layers)):
+            # Residual connection: H_new = Act(Linear(H)) + H
+            h = self.act[i](self.layers[i](h)) + h
+            
+        out = self.output_layer(h)
+        
+        # Apply strict output transformation if defined
+        if self.output_transform == 'sigmoid':
+            out = torch.sigmoid(out)
+        elif self.output_transform == 'tanh':
+            out = torch.tanh(out)
+            
+        return out
 
     @property
     def device(self):

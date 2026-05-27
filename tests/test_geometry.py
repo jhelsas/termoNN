@@ -45,7 +45,7 @@ class TestGeometry(PINNTestCase):
         domain = PolygonDomain(outer, device=self.device)
         
         n = 100
-        x, y, b_ids = domain.sample_boundary(n)
+        x, y, b_ids, _ = domain.sample_boundary(n)
         
         # Every point is on edge
         on_edge = (torch.abs(x - 0) < 1e-6) | (torch.abs(x - 1) < 1e-6) | \
@@ -71,7 +71,7 @@ class TestGeometry(PINNTestCase):
         def constant_bc(x, y):
             return torch.ones((x.shape[0], 1), device=x.device) * 5.0
             
-        _, _, u_bc = generate_boundary_data(50, device=self.device, domain=domain, bc_fn=constant_bc)
+        _, _, u_bc, _ = generate_boundary_data(50, device=self.device, domain=domain, bc_fn=constant_bc)
         self.assertTrue(torch.all(u_bc == 5.0))
 
     def test_koch_snowflake_generation(self):
@@ -110,7 +110,7 @@ class TestGeometry(PINNTestCase):
         domain = PolygonDomain(outer, holes=[h1, h2])
         
         # Sample points and check IDs
-        _, _, b_ids = domain.sample_boundary(100)
+        _, _, b_ids, _ = domain.sample_boundary(100)
         unique_ids = torch.unique(b_ids).cpu().numpy().tolist()
         self.assertIn(0, unique_ids) # Outer
         self.assertIn(1, unique_ids) # Hole 1
@@ -124,7 +124,7 @@ class TestGeometry(PINNTestCase):
         self.assertEqual(x.device.type, self.device.type)
         
         # Test boundary sampling device
-        xb, yb, bids = domain.sample_boundary(10)
+        xb, yb, bids, _ = domain.sample_boundary(10)
         self.assertEqual(xb.device.type, self.device.type)
 
     def test_bc_fn_signature_detection(self):

@@ -36,7 +36,7 @@ class TestIntegration(PINNTestCase):
         model = PINN(hidden_dim=5).to(self.device)
         optimizer = torch.optim.LBFGS(model.parameters(), lr=1)
         x_d, y_d = generate_domain_data(10, device=self.device)
-        x_b, y_b, u_b = generate_boundary_data(10, device=self.device)
+        x_b, y_b, u_b, n_b = generate_boundary_data(10, device=self.device)
         
         def closure():
             optimizer.zero_grad()

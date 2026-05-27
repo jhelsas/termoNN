@@ -3,7 +3,7 @@ import unittest
 import torch
 import numpy as np
 from src.core.geometry import PolygonDomain, generate_koch_snowflake
-from src.core.fem import solve_fem, interpolate_fem
+from src.fem.solver import solve_fem
 from src.pinn.solver import train
 from tests.base_test import PINNTestCase
 
@@ -33,8 +33,11 @@ class TestFEMComparison(PINNTestCase):
         
         # 3. Compare at interior points
         x_test, y_test = domain.sample_interior(200)
-        u_pinn = model(torch.stack([x_test, y_test], dim=1)).detach().cpu().numpy().flatten()
-        u_fem_interp = interpolate_fem(mesh, u_fem, x_test, y_test)
+        u_pinn = model(torch.stack([x_test, y_test], dim=1).to(model.device)).detach().cpu().numpy().flatten()
+        
+        # Simple interpolation for comparison
+        from scipy.interpolate import griddata
+        u_fem_interp = griddata(mesh.p.T, u_fem, (x_test.cpu().numpy(), y_test.cpu().numpy()), method='linear')
         
         # Mask NaNs from interpolation (if any points were slightly outside due to triangulation)
         mask = ~np.isnan(u_fem_interp)
@@ -67,8 +70,10 @@ class TestFEMComparison(PINNTestCase):
         
         # 3. Compare
         x_test, y_test = domain.sample_interior(200)
-        u_pinn = model(torch.stack([x_test, y_test], dim=1)).detach().cpu().numpy().flatten()
-        u_fem_interp = interpolate_fem(mesh, u_fem, x_test, y_test)
+        u_pinn = model(torch.stack([x_test, y_test], dim=1).to(model.device)).detach().cpu().numpy().flatten()
+        
+        from scipy.interpolate import griddata
+        u_fem_interp = griddata(mesh.p.T, u_fem, (x_test.cpu().numpy(), y_test.cpu().numpy()), method='linear')
         
         mask = ~np.isnan(u_fem_interp)
         mse = np.mean((u_pinn[mask] - u_fem_interp[mask])**2)

@@ -83,3 +83,7 @@ class PINN(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+    @property
+    def device(self):
+        return next(self.parameters()).device

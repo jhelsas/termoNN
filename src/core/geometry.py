@@ -25,18 +25,22 @@ class PolygonDomain:
 
     def is_inside(self, x, y):
         """Vectorized point-in-polygon check using ray-casting in PyTorch."""
-        # Ray-casting can be numerically unstable on some GPU backends (like MPS) 
-        # due to precision or branching handling. We force it to CPU for robustness.
+        # Ray-casting branching/logic can be numerically unstable on the MPS backend 
+        # (Apple Silicon). We use a fallback to CPU for MPS, but keep GPU execution 
+        # for CUDA (RTX) which handles these ops robustly.
+        use_cpu_fallback = x.device.type == 'mps'
+        
         orig_device = x.device
-        px, py = x.cpu(), y.cpu()
+        px = x.cpu() if use_cpu_fallback else x
+        py = y.cpu() if use_cpu_fallback else y
         
         def check_poly(poly, px, py):
-            poly = poly.cpu()
+            poly_local = poly.cpu() if use_cpu_fallback else poly
             inside = torch.zeros_like(px, dtype=torch.bool)
-            n = len(poly)
+            n = len(poly_local)
             for i in range(n):
-                p1 = poly[i]
-                p2 = poly[(i + 1) % n]
+                p1 = poly_local[i]
+                p2 = poly_local[(i + 1) % n]
                 
                 intersect = ((p1[1] > py) != (p2[1] > py)) & \
                             (px < (p2[0] - p1[0]) * (py - p1[1]) / (p2[1] - p1[1] + 1e-12) + p1[0])

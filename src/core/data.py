@@ -12,12 +12,14 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def get_device():
-    """Returns the best available device and explicitly initializes CUDA."""
+    """Returns the best available device and explicitly initializes CUDA/MPS."""
     if torch.cuda.is_available():
         torch.cuda.init()
         device = torch.device("cuda")
         torch.zeros(1, device=device)
         return device
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
     return torch.device("cpu")
 
 def generate_domain_data(n_points=1000, device='cpu', domain=None):

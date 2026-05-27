@@ -25,25 +25,29 @@ class PolygonDomain:
 
     def is_inside(self, x, y):
         """Vectorized point-in-polygon check using ray-casting in PyTorch."""
+        # Ray-casting can be numerically unstable on some GPU backends (like MPS) 
+        # due to precision or branching handling. We force it to CPU for robustness.
+        orig_device = x.device
+        px, py = x.cpu(), y.cpu()
+        
         def check_poly(poly, px, py):
-            # px, py: (M,) tensors
-            # poly: (N, 2) tensor
+            poly = poly.cpu()
             inside = torch.zeros_like(px, dtype=torch.bool)
             n = len(poly)
             for i in range(n):
                 p1 = poly[i]
                 p2 = poly[(i + 1) % n]
                 
-                # Ray casting logic
                 intersect = ((p1[1] > py) != (p2[1] > py)) & \
-                            (px < (p2[0] - p1[0]) * (py - p1[1]) / (p2[1] - p1[1] + 1e-10) + p1[0])
+                            (px < (p2[0] - p1[0]) * (py - p1[1]) / (p2[1] - p1[1] + 1e-12) + p1[0])
                 inside ^= intersect
             return inside
 
-        inside_outer = check_poly(self.vertices, x, y)
+        inside_outer = check_poly(self.vertices, px, py)
         for hole in self.holes:
-            inside_outer &= ~check_poly(hole, x, y)
-        return inside_outer
+            inside_outer &= ~check_poly(hole, px, py)
+            
+        return inside_outer.to(orig_device)
 
     def sample_interior(self, n_points, device=None):
         """Rejection sampling within the bounding box on the target device."""

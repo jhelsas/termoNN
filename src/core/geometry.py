@@ -103,9 +103,27 @@ class PolygonDomain:
         ids = torch.cat(edge_ids)
         normals = torch.cat(edge_normals)
         
-        probs = lens / lens.sum()
-        indices = torch.multinomial(probs, n_points, replacement=True)
+        # Ensure uniformly distributed sampling by repeating proportional allocation
+        num_edges = len(lens)
+        # Calculate exactly how many points should be on each edge based on its length
+        edge_proportions = lens / lens.sum()
+        points_per_edge = torch.round(edge_proportions * n_points).long()
         
+        # Adjust if rounding caused a mismatch with n_points
+        diff = n_points - points_per_edge.sum().item()
+        if diff > 0:
+            # Add missing points to the longest edges
+            _, top_indices = torch.topk(lens, diff)
+            points_per_edge[top_indices] += 1
+        elif diff < 0:
+            # Remove extra points from the longest edges (simplistic approach)
+            _, top_indices = torch.topk(lens, -diff)
+            points_per_edge[top_indices] -= 1
+            
+        indices = torch.cat([torch.full((count.item(),), i, dtype=torch.long, device=self.device) 
+                             for i, count in enumerate(points_per_edge)])
+        
+        # Random distribution along the chosen edges
         t = torch.rand(n_points, 1, device=self.device)
         sampled_pts = starts[indices] + t * vecs[indices]
         sampled_ids = ids[indices]

@@ -91,10 +91,16 @@ def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
         x_bot = torch.rand(n_per_side, device=device)
         y_bot = torch.zeros(n_per_side, device=device)
         u_bot = torch.sin(np.pi * x_bot).unsqueeze(1)
-        x_bc = torch.cat([x_top, x_bot]) # ... truncated
-        y_bc = torch.cat([y_top, y_bot])
-        u_bc = torch.cat([u_top, u_bot])
-        return x_bc, y_bc, u_bc, torch.zeros((n_points, 2), device=device)
+        x_left = torch.zeros(n_per_side, device=device)
+        y_left = torch.rand(n_per_side, device=device)
+        u_left = torch.zeros((n_per_side, 1), device=device)
+        x_right = torch.ones(n_per_side, device=device)
+        y_right = torch.rand(n_per_side, device=device)
+        u_right = torch.zeros((n_per_side, 1), device=device)
+        x_bc = torch.cat([x_top, x_bot, x_left, x_right])
+        y_bc = torch.cat([y_top, y_bot, y_left, y_right])
+        u_bc = torch.cat([u_top, u_bot, u_left, u_right])
+        return x_bc, y_bc, u_bc, torch.zeros((len(x_bc), 2), device=device)
 
     # Use the custom domain logic
     x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device)

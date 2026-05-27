@@ -54,3 +54,36 @@ class TestPhysicsAdvanced(PINNTestCase):
         # Should execute without error
         loss = poisson_loss(model, x, y)
         self.assertTrue(torch.isfinite(loss))
+
+    def test_boundary_gradient_loss(self):
+        """Physics Validation: Checks the tangential derivative penalty."""
+        from src.pinn.physics import boundary_gradient_loss
+        
+        # Solution u = x. grad u = (1, 0).
+        class LinearModel(torch.nn.Module):
+            def forward(self, coords):
+                return coords[:, 0:1]
+        
+        model = LinearModel()
+        
+        # Boundary at y=0, x from 0 to 1. Normal is (0, -1). Tangent is (1, 0).
+        x_bc = torch.linspace(0, 1, 10, device=self.device)
+        y_bc = torch.zeros_like(x_bc)
+        nx = torch.zeros_like(x_bc)
+        ny = torch.full_like(x_bc, -1.0)
+        
+        # Tangent derivative = u_x * tx + u_y * ty = 1 * 1 + 0 * 0 = 1.
+        # Loss should be 1.0.
+        loss = boundary_gradient_loss(model, x_bc, y_bc, nx, ny)
+        self.assertAlmostEqual(loss.item(), 1.0)
+        
+        # Boundary at x=0, y from 0 to 1. Normal is (-1, 0). Tangent is (0, -1).
+        # Tangent derivative = u_x * tx + u_y * ty = 1 * 0 + 0 * -1 = 0.
+        # Loss should be 0.0.
+        x_bc2 = torch.zeros(10, device=self.device)
+        y_bc2 = torch.linspace(0, 1, 10, device=self.device)
+        nx2 = torch.full_like(x_bc2, -1.0)
+        ny2 = torch.zeros_like(x_bc2)
+        
+        loss2 = boundary_gradient_loss(model, x_bc2, y_bc2, nx2, ny2)
+        self.assertAlmostEqual(loss2.item(), 0.0)

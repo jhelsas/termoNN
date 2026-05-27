@@ -33,3 +33,24 @@ class TestSolver(PINNTestCase):
         config = {"adam_epochs": 2, "lbfgs_epochs": 0}
         model = train(config=config)
         self.assertIsNotNone(model)
+
+    def test_adaptive_sampling_rar(self):
+        """Solver Validation: Checks if RAR sampling successfully executes."""
+        outer = torch.tensor([[0,0], [1,0], [1,1], [0,1]])
+        domain = PolygonDomain(outer)
+        
+        # Test with a dummy f_fn
+        def f_fn(x, y): return torch.ones_like(x)
+        
+        config = {
+            "adam_epochs": 5, 
+            "lbfgs_epochs": 0,
+            "use_adaptive_sampling": True,
+            "adaptive_every": 2,
+            "num_layers": 2,
+            "hidden_dim": 4
+        }
+        
+        # Ensure it runs without error (verifies generate_adaptive_domain_data path)
+        model = train(domain=domain, f_fn=f_fn, config=config)
+        self.assertIsNotNone(model)

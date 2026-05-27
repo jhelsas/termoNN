@@ -96,7 +96,23 @@ def solve_fem(domain,
     xt_b = torch.from_numpy(pb[:, 0]).float().to(domain.device)
     yt_b = torch.from_numpy(pb[:, 1]).float().to(domain.device)
     
-    u_bc_vals = bc_fn(xt_b, yt_b).cpu().numpy().flatten()
+    # Map boundary nodes to IDs using nearest neighbor from sampled boundary
+    import inspect
+    sig = inspect.signature(bc_fn)
+    if 'b_ids' in sig.parameters:
+        # Re-sample boundary to get a dense ID mapping
+        x_s, y_s, ids_s = domain.sample_boundary(max(n_boundary * 2, 2000), device='cpu')
+        sampled_coords = torch.stack([x_s, y_s], dim=1)
+        node_coords = torch.stack([xt_b.cpu(), yt_b.cpu()], dim=1)
+        
+        # Nearest neighbor search
+        dist = torch.cdist(node_coords, sampled_coords)
+        nearest_idx = dist.argmin(dim=1)
+        node_b_ids = ids_s[nearest_idx].to(domain.device)
+        
+        u_bc_vals = bc_fn(xt_b, yt_b, b_ids=node_b_ids).cpu().numpy().flatten()
+    else:
+        u_bc_vals = bc_fn(xt_b, yt_b).cpu().numpy().flatten()
     
     # Create full-size BC vector to avoid IndexError in condense
     x_bc = np.zeros(basis.N)

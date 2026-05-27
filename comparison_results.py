@@ -61,22 +61,28 @@ def run_nested_comparison():
 
     # 1. FEM Solution
     print("Solving with FEM...")
-    mesh, u_fem = solve_fem(domain, bc_nested, resolution=30)
+    mesh, u_fem = solve_fem(domain, bc_nested, resolution=60)
     fem_model = FEMWrapper(mesh, u_fem, device=get_device()).to(get_device())
-    plot_results(fem_model, domain=domain, filename='nested_fem.png', resolution=100)
+    plot_results(fem_model, domain=domain, filename='nested_fem.png', resolution=250)
 
     # 2. PINN Solution
     print("Solving with PINN...")
     config = {
-        "num_layers": 3,
-        "hidden_dim": 32,
+        "num_layers": 5,
+        "hidden_dim": 128,
         "activation": "sine",
-        "adam_epochs": 300,
-        "lbfgs_epochs": 50,
-        "lambda_bc": 50.0,
+        "omega": 30.0,
+        "adam_epochs": 1500,
+        "lbfgs_epochs": 400,
+        "lambda_bc": 400.0,
+        "lambda_range": 100.0,       # Enforce Maximum Principle
+        "use_adaptive_sampling": True, 
+        "adaptive_every": 200,
+        "use_self_adaptive_weights": True,
+        "adaptive_weight_every": 100,
     }
     pinn_model = train(domain=domain, bc_fn=bc_nested, config=config)
-    plot_results(pinn_model, domain=domain, filename='nested_pinn.png', resolution=100)
+    plot_results(pinn_model, domain=domain, filename='nested_pinn.png', resolution=250)
 
     # 3. Error Comparison
     x_test, y_test = domain.sample_interior(500)

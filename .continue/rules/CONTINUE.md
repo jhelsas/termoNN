@@ -87,6 +87,17 @@ python -m unittest discover tests
 4. **Hardware Stability Workaround**: The ray-casting engine in `geometry.py` uses a **conditional CPU fallback** for the `is_inside` check when running on `mps` devices to avoid branching-related numerical instabilities. Keep this logic in place for cross-platform reliability.
 5. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True`.
 
+### Git Commit Style Guide
+We follow a structured commit convention to maintain a clean and searchable history:
+1. **Type Prefix**: Every commit must start with a lowercase type followed by a colon (e.g., `feat:`, `fix:`, `test:`, `chore:`, `docs:`).
+   - `feat`: New feature or significant architecture change.
+   - `fix`: Bug fix in logic, physics, or geometry.
+   - `test`: Adding or updating tests.
+   - `chore`: Maintenance tasks, dependency updates, or cleanup.
+   - `docs`: Documentation changes.
+2. **Imperative Mood**: Use the imperative mood in the subject line (e.g., "add test" instead of "added test").
+3. **Detail Level**: For complex changes, include a bulleted list in the commit body explaining the "why" and "what" of the changes.
+
 ### Testing Approach
 Our test suite follows a "Physics-First" verification strategy:
 - **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).

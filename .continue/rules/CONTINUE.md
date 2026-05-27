@@ -86,6 +86,7 @@ python -m unittest discover tests
 3. **Device Awareness**: Use `get_device()`. We support CUDA (NVIDIA) and MPS (Apple Silicon).
 4. **Hardware Stability Workaround**: The ray-casting engine in `geometry.py` uses a **conditional CPU fallback** for the `is_inside` check when running on `mps` devices to avoid branching-related numerical instabilities. Keep this logic in place for cross-platform reliability.
 5. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True`.
+6. **Code Navigation & Efficiency**: Before reading large source files, always consult `PROJECT_MAP.md`. This file contains an AST-derived summary of all classes, methods, and functions. Use it to identify the specific sections of code you need to modify or debug to minimize context overhead.
 
 ### Git Commit Style Guide
 We follow a structured commit convention to maintain a clean and searchable history:

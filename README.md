@@ -12,10 +12,11 @@ This project demonstrates how to use deep learning and automatic differentiation
 
 ### Key Features
 - **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
-- **Multi-frequency SIREN**: State-of-the-art architecture for capturing both global trends and high-frequency spatial details.
-- **Unified Constraints**: Combined PDE, Boundary, and Range losses to strictly enforce the Maximum Principle.
+- **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Residual Skip Connections** for capturing multiscale physics and fractal details.
+- **Unified Constraints**: Combined PDE, Boundary, Range, and **Boundary Gradient** losses to strictly enforce the Maximum Principle and regularity.
 - **Two-Stage Optimization**: Hybrid Adam and high-persistence L-BFGS for sub-millimetric convergence.
 - **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses during training.
+- **Adaptive Refinement**: **Residual-based Adaptive Refinement (RAR)** to focus sampling in high-residue regions automatically.
 - **FEM Verification**: Built-in integration with `scikit-fem` to validate PINN results against traditional numerical methods.
 - **Hardware Agnostic**: Full support for CUDA (NVIDIA), MPS (Apple Silicon), and CPU backends.
 - **Physics-Validated**: Comprehensive testing suite (70+ tests) verifying residues against analytical solutions.
@@ -55,7 +56,7 @@ python comparison_results.py
 ```
 
 ### Running Tests
-We maintain a comprehensive suite of 70+ unit, geometric, physics, and integration tests:
+We maintain a comprehensive suite of 95+ unit, geometric, physics, and integration tests:
 ```bash
 python -m unittest discover tests
 ```

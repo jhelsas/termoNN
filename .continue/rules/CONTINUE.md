@@ -12,9 +12,9 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 - **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
 
 ### High-Level Architecture
-- **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition** and **Self-Adaptive** learnable scales.
-- **Physics (`src/pinn/physics.py`)**: Implements the Poisson/Laplace operators, Dirichlet boundary conditions, and the Range/Maximum Principle penalty.
-- **Solver (`src/pinn/solver.py`)**: Implements the two-stage (Adam + L-BFGS) optimization with self-adaptive loss weighting and residual-based refinement (RAR).
+- **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition**, **Fourier Feature Mapping**, **Residual Skip Connections**, and **Self-Adaptive** learnable scales.
+- **Physics (`src/pinn/physics.py`)**: Implements the Poisson/Laplace operators, Dirichlet boundary conditions, **Neumann/Gradient boundary conditions**, and the Range/Maximum Principle penalty.
+- **Solver (`src/pinn/solver.py`)**: Implements the two-stage (Adam + L-BFGS) optimization with self-adaptive loss weighting and **Residual-based Adaptive Refinement (RAR)**.
 - **Core (`src/core/`)**: 
     - `geometry.py`: Handles complex geometries using ray-casting. Includes a conditional CPU fallback for stability on Apple Silicon.
     - `data.py`: Sampling, hardware abstraction (CUDA/MPS), and reproducibility.
@@ -59,7 +59,7 @@ python main.py
 # Run PINN vs FEM Benchmarks
 python comparison_results.py
 
-# Run full test suite (70+ tests)
+# Run full test suite (95+ tests)
 python -m unittest discover tests
 ```
 
@@ -86,7 +86,8 @@ python -m unittest discover tests
 3. **Device Awareness**: Use `get_device()`. We support CUDA (NVIDIA) and MPS (Apple Silicon).
 4. **Hardware Stability Workaround**: The ray-casting engine in `geometry.py` uses a **conditional CPU fallback** for the `is_inside` check when running on `mps` devices to avoid branching-related numerical instabilities. Keep this logic in place for cross-platform reliability.
 5. **Autograd Safety**: When computing higher-order gradients, use `create_graph=True` and `allow_unused=True`.
-6. **Code Navigation & Efficiency**: Before reading large source files, always consult `PROJECT_MAP.md`. This file contains an AST-derived summary of all classes, methods, and functions. Use it to identify the specific sections of code you need to modify or debug to minimize context overhead.
+6. **Architecture Selection**: For complex geometries or sharp gradients, use `use_fourier_features=True` and `residual=True` in the `PINN` model.
+7. **Code Navigation & Efficiency**: Before reading large source files, always consult `PROJECT_MAP.md`. This file contains an AST-derived summary of all classes, methods, and functions. Use it to identify the specific sections of code you need to modify or debug to minimize context overhead.
 
 ### Git Commit Style Guide
 We follow a structured commit convention to maintain a clean and searchable history:

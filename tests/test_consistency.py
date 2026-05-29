@@ -27,11 +27,11 @@ class TestConsistency(PINNTestCase):
         }
         
         # Run 1
-        model1 = train(domain=domain, bc_fn=bc_fn, config=config)
+        model1, history1 = train(domain=domain, bc_fn=bc_fn, config=config)
         weights1 = torch.cat([p.flatten() for p in model1.parameters()])
         
         # Run 2
-        model2 = train(domain=domain, bc_fn=bc_fn, config=config)
+        model2, history2 = train(domain=domain, bc_fn=bc_fn, config=config)
         weights2 = torch.cat([p.flatten() for p in model2.parameters()])
         
         self.assertTensorsEqual(weights1, weights2, "Weights should be identical with the same seed")

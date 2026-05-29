@@ -29,7 +29,7 @@ class TestFEMComparison(PINNTestCase):
             "adam_epochs": 500,
             "lbfgs_epochs": 100,
         }
-        model = train(domain=domain, bc_fn=bc_fn, config=config)
+        model, history = train(domain=domain, bc_fn=bc_fn, config=config)
         
         # 3. Compare at interior points
         x_test, y_test = domain.sample_interior(200)
@@ -66,7 +66,7 @@ class TestFEMComparison(PINNTestCase):
             "adam_epochs": 800,
             "lbfgs_epochs": 200,
         }
-        model = train(domain=domain, bc_fn=bc_harmonic, config=config)
+        model, history = train(domain=domain, bc_fn=bc_harmonic, config=config)
         
         # 3. Compare
         x_test, y_test = domain.sample_interior(200)

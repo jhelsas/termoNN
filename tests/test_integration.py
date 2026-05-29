@@ -28,7 +28,7 @@ class TestIntegration(PINNTestCase):
         """Ensures that a short Adam training cycle decreases the loss."""
         # Note: train() now uses a config dictionary
         config = {"adam_epochs": 5, "lbfgs_epochs": 0, "adam_lr": 0.01}
-        model = train(config=config)
+        model, history = train(config=config)
         self.assertEqual(next(model.parameters()).device.type, self.device.type)
 
     def test_lbfgs_closure_integration(self):
@@ -60,7 +60,7 @@ class TestIntegration(PINNTestCase):
     def test_range_loss_integration(self):
         """Integration Test: Ensures lambda_range > 0 does not crash the trainer."""
         config = {"adam_epochs": 2, "lbfgs_epochs": 1, "lambda_range": 10.0}
-        model = train(config=config)
+        model, history = train(config=config)
         self.assertIsNotNone(model)
 
     def test_polygon_integration_training(self):
@@ -74,7 +74,7 @@ class TestIntegration(PINNTestCase):
             
         # Run very short training
         config = {"adam_epochs": 2, "lbfgs_epochs": 1}
-        model = train(domain=domain, bc_fn=zero_bc, config=config)
+        model, history = train(domain=domain, bc_fn=zero_bc, config=config)
         self.assertIsNotNone(model)
         
         # Verify plotting with custom domain

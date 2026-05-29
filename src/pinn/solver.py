@@ -4,10 +4,11 @@ from src.pinn.model import PINN
 from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss
 from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
 
-def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
+def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
     """
     Trains the PINN model using a two-stage approach (Adam + L-BFGS).
     Includes self-adaptive weighting, weight warmup, and adaptive sampling.
+    Returns: (model, history)
     """
     # Default configuration
     default_config = {
@@ -49,6 +50,12 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
 
     set_seed(cfg["seed"])
     device = get_device()
+    
+    # History tracking
+    history = {
+        "adam": {"loss": [], "loss_pde": [], "loss_bc": [], "lambda_bc": [], "lambda_range": []},
+        "lbfgs": {"loss": [], "loss_pde": [], "loss_bc": [], "loss_range": []}
+    }
     
     model = PINN(
         hidden_dim=cfg["hidden_dim"], 
@@ -128,6 +135,13 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
         optimizer_adam.step()
         scheduler.step(total_loss.detach())
         
+        # Track history
+        history["adam"]["loss"].append(total_loss.item())
+        history["adam"]["loss_pde"].append(loss_pde.item())
+        history["adam"]["loss_bc"].append(loss_bc.item())
+        history["adam"]["lambda_bc"].append(float(current_lambda_bc))
+        history["adam"]["lambda_range"].append(float(current_lambda_range))
+        
         if epoch % 500 == 0:
             print(f"Adam Epoch {epoch:4d} | Loss: {total_loss.item():.6f} (PDE: {loss_pde.item():.6f}, BC: {loss_bc.item():.6f})")
 
@@ -156,7 +170,14 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> torch.nn.Module:
 
     for epoch in range(cfg["lbfgs_epochs"]):
         loss = optimizer_lbfgs.step(closure)
+        
+        # Track history
+        history["lbfgs"]["loss"].append(loss.item())
+        history["lbfgs"]["loss_pde"].append(loss.pde)
+        history["lbfgs"]["loss_bc"].append(loss.bc)
+        history["lbfgs"]["loss_range"].append(loss.range)
+        
         if epoch % 100 == 0:
             print(f"L-BFGS Epoch {epoch:3d} | Loss: {loss.item():.8f} (PDE: {loss.pde:.8f}, BC: {loss.bc:.8f}, R: {loss.range:.8f})")
             
-    return model
+    return model, history

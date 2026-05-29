@@ -74,7 +74,7 @@ def generate_pinn_solution():
         "use_self_adaptive_weights": False,
         "seed": 42
     }
-    pinn_model = train(domain=domain, bc_fn=bc_nested, config=config)
+    pinn_model, history = train(domain=domain, bc_fn=bc_nested, config=config)
     
     # Sample and save high-resolution grid for error comparison later
     x_test, y_test = domain.sample_interior(5000)

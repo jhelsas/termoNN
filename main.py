@@ -27,7 +27,7 @@ def solve_koch_snowflake_example():
     }
 
     print("\n--- Scenario: harmonic ---")
-    model = train(domain=domain, bc_fn=bc_harmonic, config=config)
+    model, history = train(domain=domain, bc_fn=bc_harmonic, config=config)
     plot_results(model, domain=domain, filename='snowflake_harmonic.png')
 
 def solve_nested_snowflakes_example(config=None):
@@ -44,7 +44,7 @@ def solve_nested_snowflakes_example(config=None):
             u[b_ids == 1] = 1.0
         return u
 
-    model = train(domain=domain, bc_fn=bc_nested, config=config)
+    model, history = train(domain=domain, bc_fn=bc_nested, config=config)
     plot_results(model, domain=domain, filename='nested_snowflakes.png')
 
 if __name__ == "__main__":

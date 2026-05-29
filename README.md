@@ -7,7 +7,7 @@
 
 A modular implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and **Laplace Equation** ($\nabla^2 u = 0$) on arbitrary, non-convex, and multi-connected domains.
 
-## 🚀 Overview
+## Overview
 
 This project is an **exploratory implementation** of PINNs for steady-state heat and potential problems on complex geometries. It currently supports 2D domains with Dirichlet and Neumann boundary conditions, utilizing a Tensor-native polygon engine.
 
@@ -26,7 +26,7 @@ This is an **early-stage research project**. Current limitations include:
 - **Optimization**: No domain decomposition or large-scale multi-GPU parallelism.
 - **Physics**: Does not yet support time-dependent equations or 3D geometries.
 
-## 🛠️ Installation
+## Installation
 
 1. **Clone the repository**:
    ```bash
@@ -45,7 +45,7 @@ This is an **early-stage research project**. Current limitations include:
    pip install -r requirements.txt
    ```
 
-## 📉 Usage
+## Usage
 
 ### Training the Model
 To start the training process and generate the solution plot:
@@ -77,7 +77,7 @@ pytest tests/
 pytest --cov=src tests/
 ```
 
-## 🏗️ Project Structure
+## Project Structure
 
 - `src/`: Core logic modules.
   - `pinn/`: PINN specific modules (model, physics, solver).
@@ -99,10 +99,10 @@ Where:
 - The first term ensures the network satisfies the governing equation (Laplace if $f=0$).
 - The second term enforces the boundary conditions (e.g., $u(x, 0) = \sin(\pi x)$).
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## 📚 References
+## References
 - [Raissi et al. (2019) - Physics-informed neural networks](https://maziarraissi.github.io/PINNs/)
 - [PyTorch Autograd Documentation](https://pytorch.org/docs/stable/autograd.html)

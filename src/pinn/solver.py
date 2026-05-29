@@ -4,10 +4,11 @@ from src.pinn.model import PINN
 from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss
 from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
 
-def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
+def train(domain=None, bc_fn=None, f_fn=None, config=None, use_ansatz=False) -> tuple:
     """
     Trains the PINN model using a two-stage approach (Adam + L-BFGS).
     Includes self-adaptive weighting, weight warmup, and adaptive sampling.
+    If use_ansatz is True, applies exact boundary enforcement.
     Returns: (model, history)
     """
     # Default configuration
@@ -67,6 +68,12 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         fourier_scale=cfg.get("fourier_scale", 10.0),
         output_transform=cfg.get("output_transform", None)
     ).to(device)
+
+    if use_ansatz:
+        from src.pinn.model import ExactBoundaryAnsatz
+        model = ExactBoundaryAnsatz(model, domain=domain, bc_mode='nested').to(device)
+        print("  - [!] EXACT BOUNDARY ENFORCEMENT ENABLED")
+        print("  - [!] Boundary Loss weights will be ignored")
     
     # Stage 1: Adam
     optimizer_adam = optim.Adam(model.parameters(), lr=cfg["adam_lr"])
@@ -120,11 +127,17 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         
         optimizer_adam.zero_grad()
         loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
-        loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
-        total_loss = loss_pde + current_lambda_bc * loss_bc
         
-        if cfg.get("lambda_grad_bc", 0) > 0:
-            total_loss += cfg["lambda_grad_bc"] * boundary_gradient_loss(model, x_bc, y_bc, n_bc[:, 0], n_bc[:, 1])
+        if use_ansatz:
+            # Ansatz perfectly satisfies boundaries; no BC loss needed
+            loss_bc = torch.tensor(0.0, device=device)
+            total_loss = loss_pde
+        else:
+            loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
+            total_loss = loss_pde + current_lambda_bc * loss_bc
+            
+            if cfg.get("lambda_grad_bc", 0) > 0:
+                total_loss += cfg["lambda_grad_bc"] * boundary_gradient_loss(model, x_bc, y_bc, n_bc[:, 0], n_bc[:, 1])
 
         if current_lambda_range > 0:
             coords_d = torch.stack([x_domain, y_domain], dim=1)
@@ -160,11 +173,16 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
     def closure():
         optimizer_lbfgs.zero_grad()
         l_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
-        l_bc = boundary_loss(model, x_bc, y_bc, u_bc)
-        total_loss = l_pde + current_lambda_bc * l_bc
         
-        if cfg.get("lambda_grad_bc", 0) > 0:
-            total_loss += cfg["lambda_grad_bc"] * boundary_gradient_loss(model, x_bc, y_bc, n_bc[:, 0], n_bc[:, 1])
+        if use_ansatz:
+            l_bc = torch.tensor(0.0, device=device)
+            total_loss = l_pde
+        else:
+            l_bc = boundary_loss(model, x_bc, y_bc, u_bc)
+            total_loss = l_pde + current_lambda_bc * l_bc
+            
+            if cfg.get("lambda_grad_bc", 0) > 0:
+                total_loss += cfg["lambda_grad_bc"] * boundary_gradient_loss(model, x_bc, y_bc, n_bc[:, 0], n_bc[:, 1])
 
         l_r_val = 0.0
         if current_lambda_range > 0:

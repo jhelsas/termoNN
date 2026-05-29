@@ -50,16 +50,15 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png', r
     print(f"Diagnostics for {filename}:")
     print(f"  - Value Range in Domain: [{u_min:.4f}, {u_max:.4f}]")
     
+    # Plot 1: Standard Contour
     plt.figure(figsize=(10, 8), dpi=200)
-    # Use fixed bounds for consistent color mapping between PINN and FEM
     if filename.startswith('nested_') or filename.startswith('fem_nested'):
-        # For the annulus problem, we want to see the [0, 1] range clearly
         im = plt.contourf(X, Y, u_pred, levels=100, cmap='viridis', vmin=-0.1, vmax=1.1)
     else:
         im = plt.contourf(X, Y, u_pred, levels=100, cmap='viridis')
     plt.colorbar(im, label='u(x, y)')
     
-    # Overlay the domain boundary for reference
+    # Boundary overlays
     if domain:
         v = domain.vertices.cpu().numpy()
         plt.plot(np.append(v[:, 0], v[0, 0]), np.append(v[:, 1], v[0, 1]), 'k-', lw=1.5, alpha=0.8)
@@ -67,11 +66,22 @@ def plot_results(model: torch.nn.Module, domain=None, filename='solution.png', r
             vh = hole.cpu().numpy()
             plt.plot(np.append(vh[:, 0], vh[0, 0]), np.append(vh[:, 1], vh[0, 1]), 'k-', lw=1.5, alpha=0.8)
 
-    plt.title('High-Resolution PINN Solution')
-    plt.xlabel('x')
-    plt.ylabel('y')
+    plt.title(f'Solution: {filename}')
     plt.tight_layout()
     plt.savefig(filename, bbox_inches='tight')
     plt.close()
-    print(f"High-resolution result saved to {filename}")
+
+    # Plot 2: Gradient Norm Plot (to inspect "undershooting" and sharp edges)
+    # This helps see where the model is struggling with sharp spikes
+    if domain:
+        gx, gy = np.gradient(u_pred)
+        grad_norm = np.sqrt(gx**2 + gy**2)
+        plt.figure(figsize=(10, 8), dpi=200)
+        im = plt.imshow(grad_norm, extent=(min_x, max_x, min_y, max_y), origin='lower', cmap='inferno')
+        plt.colorbar(im, label='|grad u|')
+        plt.title(f'Gradient Norm: {filename}')
+        plt.savefig(filename.replace('.png', '_gradient.png'), bbox_inches='tight')
+        plt.close()
+
+    print(f"High-resolution results saved to {filename} and associated plots")
 

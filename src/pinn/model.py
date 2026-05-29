@@ -120,3 +120,38 @@ class PINN(nn.Module):
     @property
     def device(self):
         return next(self.parameters()).device
+
+class ExactBoundaryAnsatz(nn.Module):
+    """
+    Wraps a core network to strictly enforce boundary conditions using an Ansatz.
+    u(x) = G(x) + D(x) * N_theta(x)
+    """
+    def __init__(self, core_model: PINN, domain, bc_mode='nested'):
+        super().__init__()
+        self.core = core_model
+        self.domain = domain
+        self.bc_mode = bc_mode
+
+    def forward(self, coords):
+        x, y = coords[:, 0], coords[:, 1]
+        n_out = self.core(coords)
+        
+        if self.bc_mode == 'nested':
+            # Calculate distance to outer boundary (id 0) and inner boundary (id 1)
+            # Using exact distance with epsilon for safe gradients
+            d_out = self.domain.exact_distance(x, y, poly_idx=0)
+            d_in = self.domain.exact_distance(x, y, poly_idx=1)
+            
+            # G(x) = d_out / (d_in + d_out)  => 1 at inner (d_in=0), 0 at outer (d_out=0)
+            # D(x) = d_in * d_out => 0 at both boundaries
+            d_sum = d_in + d_out + 1e-8
+            G = (d_out / d_sum).unsqueeze(1)
+            D = (d_in * d_out).unsqueeze(1)
+            
+            return G + D * n_out
+        else:
+            raise NotImplementedError(f"Ansatz mode {self.bc_mode} not implemented.")
+
+    @property
+    def device(self):
+        return self.core.device

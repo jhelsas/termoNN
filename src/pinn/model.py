@@ -57,6 +57,10 @@ class PINN(nn.Module):
         self.layers.append(nn.Linear(current_input_dim, hidden_dim))
         
         # Hidden layers with Residual support
+        # We use a slight learnable scaling for the residual to prevent 
+        # high-frequency destabilization in SIREN.
+        self.res_scales = nn.ParameterList([nn.Parameter(torch.tensor(0.1)) for _ in range(num_layers - 1)])
+        
         for _ in range(num_layers - 1):
             self.layers.append(nn.Linear(hidden_dim, hidden_dim))
             
@@ -71,6 +75,13 @@ class PINN(nn.Module):
             else:
                 self.act.append(nn.Tanh())
         
+        # Pre-cache transform modes to avoid runtime string comparisons
+        self._transform_mode = 0
+        if output_transform == 'sigmoid':
+            self._transform_mode = 1
+        elif output_transform == 'tanh':
+            self._transform_mode = 2
+
         if activation == 'sine':
             self._init_siren()
 
@@ -86,21 +97,21 @@ class PINN(nn.Module):
     def forward(self, x):
         # Apply Fourier Mapping
         if self.use_fourier_features:
-            x_proj = 2 * np.pi * x @ self.B
+            x_proj = 2 * torch.pi * x @ self.B
             x = torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
             
         # Forward through layers with Skip Connections
         h = self.act[0](self.layers[0](x))
         for i in range(1, len(self.layers)):
-            # Residual connection: H_new = Act(Linear(H)) + H
-            h = self.act[i](self.layers[i](h)) + h
+            # Residual connection with scaling to stabilize SIREN training
+            h = self.act[i](self.layers[i](h)) + self.res_scales[i-1] * h
             
         out = self.output_layer(h)
         
-        # Apply strict output transformation if defined
-        if self.output_transform == 'sigmoid':
+        # Apply strict output transformation if defined using cached modes
+        if self._transform_mode == 1:
             out = torch.sigmoid(out)
-        elif self.output_transform == 'tanh':
+        elif self._transform_mode == 2:
             out = torch.tanh(out)
             
         return out

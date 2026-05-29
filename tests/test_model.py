@@ -64,6 +64,7 @@ class TestModel(PINNTestCase):
         model = PINN(hidden_dim=hidden_dim, num_layers=num_layers, use_fourier_features=False).to(self.device)
         self.assertEqual(model.layers[0].weight.shape[0], hidden_dim)
         self.assertEqual(len(model.layers), num_layers)
+        self.assertEqual(len(model.res_scales), num_layers - 1)
 
     def test_model_device_movement(self):
         """Verifies the model can be moved between devices (if available)."""
@@ -186,10 +187,10 @@ class TestModel(PINNTestCase):
         self.assertEqual(model.layers[0].in_features, 64)
 
     def test_residual_skip_connections(self):
-        """Architecture Validation: Verifies skip connections are operational."""
+        """Architecture Validation: Verifies skip connections and scaling are operational."""
         model = PINN(num_layers=3, hidden_dim=16, use_fourier_features=False)
+        self.assertEqual(len(model.res_scales), 2)
         x = torch.randn(1, 2)
-        # If skip connections work, we can track path from layer 0 to layer 1
         with torch.no_grad():
             out = model(x)
             self.assertEqual(out.shape, (1, 1))

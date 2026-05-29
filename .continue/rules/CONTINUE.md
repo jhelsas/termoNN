@@ -17,7 +17,7 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 - **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
 
 ### High-Level Architecture
-- **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition**, **Fourier Feature Mapping**, **Residual Skip Connections**, and **Self-Adaptive** learnable scales.
+- **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition**, **Fourier Feature Mapping**, **Stabilized Residual Skip Connections** (learnable scaling), and **Self-Adaptive** learnable scales.
 - **Physics (`src/pinn/physics.py`)**: Implements the Poisson/Laplace operators, Dirichlet boundary conditions, **Neumann/Gradient boundary conditions**, and the Range/Maximum Principle penalty.
 - **Solver (`src/pinn/solver.py`)**: Implements the two-stage (Adam + L-BFGS) optimization with self-adaptive loss weighting and **Residual-based Adaptive Refinement (RAR)**.
 - **Core (`src/core/`)**: 

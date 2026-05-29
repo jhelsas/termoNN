@@ -126,6 +126,7 @@ To achieve high accuracy on complex domains, the solver employs two distinct ada
 PINN loss functions are often stiff due to the competition between the PDE residue and boundary constraints. This solver uses **gradient-based adaptive weighting**:
 - During training, we compute the maximum gradient norm of the PDE loss and the mean gradient norm of the Boundary loss with respect to the network parameters.
 - The weight $\lambda_{bc}$ is dynamically adjusted to ensure that the boundary constraints contribute a comparable gradient magnitude to the optimization step, preventing the PDE loss from overwhelming the training.
+- These dynamics, along with loss residues, are tracked in the `history` object returned by the `train()` function for post-mortem diagnostics.
 
 #### 2. Residual-based Adaptive Refinement (RAR)
 Standard uniform sampling often misses high-gradient regions or sharp geometric features. We implement **RAR**:

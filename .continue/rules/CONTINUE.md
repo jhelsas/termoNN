@@ -3,7 +3,12 @@
 ## Project Overview
 This project implements a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and the **Laplace Equation** ($\nabla^2 u = 0$) within arbitrary, non-convex, and multi-connected domains (polygons with holes).
 
-PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. This implementation goes beyond simple rectangular domains, supporting complex geometries through a robust polygon-based sampling engine.
+PINNs represent a paradigm shift in scientific computing, where neural networks act as universal function approximators constrained by physical laws. This implementation is an **exploratory research project** focused on solving steady-state PDEs in 2D complex geometries.
+
+### Current Limitations
+- **No Large-Scale Parallelism**: The solver is optimized for single-device (GPU/CPU) execution. It does not currently support multi-GPU data parallelism or domain decomposition.
+- **2D Only**: The geometric engine and physics kernels are strictly 2D.
+- **Exploratory Status**: While core components are well-tested, the project is in an early stage of development and should not be considered "production-ready" for safety-critical simulations.
 
 ### Key Technologies
 - **Python 3.8+**: Core language.
@@ -112,6 +117,21 @@ Our test suite follows a "Physics-First" verification strategy using `pytest` an
 ---
 
 ## Key Concepts
+
+### Sampling and Self-Adaptivity
+
+To achieve high accuracy on complex domains, the solver employs two distinct adaptive strategies:
+
+#### 1. Self-Adaptive Loss Weighting
+PINN loss functions are often stiff due to the competition between the PDE residue and boundary constraints. This solver uses **gradient-based adaptive weighting**:
+- During training, we compute the maximum gradient norm of the PDE loss and the mean gradient norm of the Boundary loss with respect to the network parameters.
+- The weight $\lambda_{bc}$ is dynamically adjusted to ensure that the boundary constraints contribute a comparable gradient magnitude to the optimization step, preventing the PDE loss from overwhelming the training.
+
+#### 2. Residual-based Adaptive Refinement (RAR)
+Standard uniform sampling often misses high-gradient regions or sharp geometric features. We implement **RAR**:
+- Periodically, the current model is evaluated on a large candidate set of points.
+- The PDE residue $|\nabla^2 u - f|$ is calculated for all candidates.
+- A new set of collocation points is selected, favoring those with the highest residues. This "concentrates" the network's attention on the hardest parts of the domain to solve.
 
 ### Complex Domain Handling
 The project supports domains defined by an outer polygon and multiple inner holes, using a Tensor-native geometry engine.

@@ -4,23 +4,27 @@
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/release/python-3140/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
 
-A modular and production-ready implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and **Laplace Equation** ($\nabla^2 u = 0$) on arbitrary, non-convex, and multi-connected domains.
+[![Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)](#-running-tests--coverage)
+
+A modular implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and **Laplace Equation** ($\nabla^2 u = 0$) on arbitrary, non-convex, and multi-connected domains.
 
 ## 🚀 Overview
 
-This project demonstrates how to use deep learning and automatic differentiation to solve partial differential equations (PDEs) on complex geometries. Unlike traditional solvers restricted to simple grids, this PINN implementation utilizes a Tensor-native polygon engine and a flexible physics loss to handle diverse steady-state problems. It also includes a **Finite Element Method (FEM)** comparison suite for high-fidelity verification.
+This project is an **exploratory implementation** of PINNs for steady-state heat and potential problems on complex geometries. It currently supports 2D domains with Dirichlet and Neumann boundary conditions, utilizing a Tensor-native polygon engine.
 
 ### Key Features
 - **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
-- **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Residual Skip Connections** for capturing multiscale physics and fractal details.
-- **Unified Constraints**: Combined PDE, Boundary, Range, and **Boundary Gradient** losses to strictly enforce the Maximum Principle and regularity.
-- **Two-Stage Optimization**: Hybrid Adam and high-persistence L-BFGS for sub-millimetric convergence.
-- **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses during training.
-- **Adaptive Refinement**: **Residual-based Adaptive Refinement (RAR)** to focus sampling in high-residue regions automatically.
-- **FEM Verification**: Built-in integration with `scikit-fem` to validate PINN results against traditional numerical methods.
-- **Hardware Agnostic**: Full support for CUDA (NVIDIA), MPS (Apple Silicon), and CPU backends.
-- **Robust Test Coverage**: 95%+ code coverage across the core engine using `pytest` and `coverage.py`.
-- **Physics-Validated**: Comprehensive testing suite (95+ tests) verifying residues against analytical solutions.
+- **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Residual Skip Connections**.
+- **Adaptive Training**: 
+    - **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses based on gradient statistics.
+    - **RAR Sampling**: Residual-based Adaptive Refinement that concentrates collocation points in regions with high PDE residue.
+- **Verification**: Integrated FEM comparison suite using `scikit-fem`.
+
+### Project Status (Exploratory)
+This is an **early-stage research project**. Current limitations include:
+- **Scope**: Limited to 2D steady-state problems (Laplace/Poisson).
+- **Optimization**: No domain decomposition or large-scale multi-GPU parallelism.
+- **Physics**: Does not yet support time-dependent equations or 3D geometries.
 
 ## 🛠️ Installation
 
@@ -57,7 +61,14 @@ python comparison_results.py
 ```
 
 ### Running Tests & Coverage
-We maintain a comprehensive suite of 95+ unit, geometric, physics, and integration tests with 95% code coverage:
+We maintain a comprehensive suite of 95+ tests with 95% code coverage. Our testing strategy follows a hierarchical approach:
+
+- **Unit Tests**: Verification of individual components like `PolygonDomain` (geometry), `Sine` activation (model), and data samplers.
+- **Physics Tests**: Validation of the PDE residues ($u_{xx} + u_{yy}$) against known analytical solutions (Linear, Quadratic, and Harmonic functions).
+- **Integration Tests**: Verification of the full training loop (Adam + L-BFGS), plotting workflows, and cross-device (CPU/GPU) consistency.
+- **Geometric Tests**: Rigorous checking of point-in-polygon logic, ray-casting robustness, and boundary normal calculations for complex/fractal shapes.
+- **FEM Benchmarking**: End-to-end verification of the PINN solution against a ground-truth Finite Element solver.
+
 ```bash
 # Run all tests
 pytest tests/

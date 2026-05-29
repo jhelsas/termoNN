@@ -17,6 +17,7 @@ This project is an **exploratory implementation** of PINNs for steady-state heat
 - **Adaptive Training**: 
     - **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses based on gradient statistics.
     - **RAR Sampling**: Residual-based Adaptive Refinement that concentrates collocation points in regions with high PDE residue.
+    - **Full Diagnostics**: Comprehensive training history tracking for post-mortem analysis of loss and weight dynamics.
 - **Verification**: Integrated FEM comparison suite using `scikit-fem`.
 
 ### Project Status (Exploratory)

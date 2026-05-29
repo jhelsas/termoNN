@@ -3,7 +3,6 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/release/python-3140/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
-
 [![Coverage](https://img.shields.io/badge/Coverage-95%25-brightgreen.svg)](#-running-tests--coverage)
 
 A modular implementation of a **Physics-Informed Neural Network (PINN)** to solve the 2D **Poisson Equation** ($\nabla^2 u = f$) and **Laplace Equation** ($\nabla^2 u = 0$) on arbitrary, non-convex, and multi-connected domains.

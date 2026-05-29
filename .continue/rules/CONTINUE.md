@@ -59,8 +59,8 @@ python main.py
 # Run PINN vs FEM Benchmarks
 python comparison_results.py
 
-# Run full test suite (95+ tests)
-python -m unittest discover tests
+# Run full test suite with coverage (95+ tests)
+pytest --cov=src tests/
 ```
 
 ---
@@ -101,12 +101,13 @@ We follow a structured commit convention to maintain a clean and searchable hist
 3. **Detail Level**: For complex changes, include a bulleted list in the commit body explaining the "why" and "what" of the changes.
 
 ### Testing Approach
-Our test suite follows a "Physics-First" verification strategy:
+Our test suite follows a "Physics-First" verification strategy using `pytest` and `coverage.py`:
 - **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).
 - **Geometric Validation**: Verifies ray-casting (inside/outside) and boundary sampling for complex polygons and holes.
 - **Physics Validation**: Verify the Laplace residue against analytical solutions (Linear, Quad, Harmonic).
 - **FEM Benchmarking**: Continuous verification of PINN solutions against a traditional Finite Element solver.
 - **Integration Tests**: Ensure the optimizer successfully reduces the loss on complex domains.
+- **Coverage**: We maintain >95% code coverage to ensure all physics paths are validated.
 
 ---
 

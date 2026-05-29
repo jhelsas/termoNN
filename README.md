@@ -19,7 +19,8 @@ This project demonstrates how to use deep learning and automatic differentiation
 - **Adaptive Refinement**: **Residual-based Adaptive Refinement (RAR)** to focus sampling in high-residue regions automatically.
 - **FEM Verification**: Built-in integration with `scikit-fem` to validate PINN results against traditional numerical methods.
 - **Hardware Agnostic**: Full support for CUDA (NVIDIA), MPS (Apple Silicon), and CPU backends.
-- **Physics-Validated**: Comprehensive testing suite (70+ tests) verifying residues against analytical solutions.
+- **Robust Test Coverage**: 95%+ code coverage across the core engine using `pytest` and `coverage.py`.
+- **Physics-Validated**: Comprehensive testing suite (95+ tests) verifying residues against analytical solutions.
 
 ## 🛠️ Installation
 
@@ -55,10 +56,14 @@ To solve a complex geometry (like a nested snowflake annulus) with both PINN and
 python comparison_results.py
 ```
 
-### Running Tests
-We maintain a comprehensive suite of 95+ unit, geometric, physics, and integration tests:
+### Running Tests & Coverage
+We maintain a comprehensive suite of 95+ unit, geometric, physics, and integration tests with 95% code coverage:
 ```bash
-python -m unittest discover tests
+# Run all tests
+pytest tests/
+
+# Run tests with coverage report
+pytest --cov=src tests/
 ```
 
 ## 🏗️ Project Structure

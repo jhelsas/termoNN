@@ -64,7 +64,7 @@ python main.py
 # Run PINN vs FEM Benchmarks
 python comparison_results.py
 
-# Run full test suite with coverage (95+ tests)
+# Run full test suite with coverage (100+ tests)
 pytest --cov=src tests/
 ```
 

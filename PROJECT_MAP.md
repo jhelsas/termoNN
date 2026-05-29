@@ -229,6 +229,14 @@
   - `test_train_config_patience()`
   - `test_adaptive_sampling_rar()`
 
+## `./tests/test_solver_advanced.py`
+### Classes
+- **TestSolverAdvanced**
+  - `test_history_tracking_adam()`
+  - `test_history_tracking_lbfgs()`
+  - `test_lbfgs_point_regeneration()`
+  - `test_adaptive_weight_clamping()`
+
 ## `./tests/test_viz.py`
 ### Classes
 - **TestViz**
@@ -438,6 +446,14 @@
   - `test_adaptive_weight_clamping()`
   - `test_train_config_patience()`
   - `test_adaptive_sampling_rar()`
+
+## `tests/test_solver_advanced.py`
+### Classes
+- **TestSolverAdvanced**
+  - `test_history_tracking_adam()`
+  - `test_history_tracking_lbfgs()`
+  - `test_lbfgs_point_regeneration()`
+  - `test_adaptive_weight_clamping()`
 
 ## `tests/test_viz.py`
 ### Classes

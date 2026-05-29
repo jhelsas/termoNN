@@ -147,6 +147,14 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
 
     # Stage 2: L-BFGS
     print(f"--- Stage 2: L-BFGS Fine-tuning ---")
+    
+    # Regenerate collocation points for the high-persistence stage
+    n_points_d_lbfgs = cfg.get("lbfgs_points_domain", 3000)
+    n_points_b_lbfgs = cfg.get("lbfgs_points_bc", 600)
+    
+    x_domain, y_domain = generate_domain_data(n_points_d_lbfgs, device=device, domain=domain)
+    x_bc, y_bc, u_bc, n_bc = generate_boundary_data(n_points_b_lbfgs, device=device, domain=domain, bc_fn=bc_fn)
+    
     optimizer_lbfgs = optim.LBFGS(model.parameters(), lr=1, max_iter=40, tolerance_grad=1e-9, history_size=100, line_search_fn="strong_wolfe")
 
     def closure():

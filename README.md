@@ -13,7 +13,7 @@ This project is an **exploratory implementation** of PINNs for steady-state heat
 
 ### Key Features
 - **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
-- **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Residual Skip Connections**.
+- **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Stabilized Residual Skip Connections** (learnable scaling).
 - **Adaptive Training**: 
     - **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses based on gradient statistics.
     - **RAR Sampling**: Residual-based Adaptive Refinement that concentrates collocation points in regions with high PDE residue.
@@ -61,7 +61,7 @@ python comparison_results.py
 ```
 
 ### Running Tests & Coverage
-We maintain a comprehensive suite of 95+ tests with 95% code coverage. Our testing strategy follows a hierarchical approach:
+We maintain a comprehensive suite of 100+ tests with 95% code coverage. Our testing strategy follows a hierarchical approach:
 
 - **Unit Tests**: Verification of individual components like `PolygonDomain` (geometry), `Sine` activation (model), and data samplers.
 - **Physics Tests**: Validation of the PDE residues ($u_{xx} + u_{yy}$) against known analytical solutions (Linear, Quadratic, and Harmonic functions).

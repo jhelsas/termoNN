@@ -103,8 +103,9 @@ class PINN(nn.Module):
         # Forward through layers with Skip Connections
         h = self.act[0](self.layers[0](x))
         for i in range(1, len(self.layers)):
-            # Residual connection with scaling to stabilize SIREN training
-            h = self.act[i](self.layers[i](h)) + self.res_scales[i-1] * h
+            # Residual connection with learnable scaling on the residual branch
+            # H_new = H_old + scale * Act(Linear(H_old))
+            h = h + self.res_scales[i-1] * self.act[i](self.layers[i](h))
             
         out = self.output_layer(h)
         

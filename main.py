@@ -60,7 +60,7 @@ def solve_nested_snowflakes_example(config=None):
             "use_self_adaptive_weights": False,
         }
 
-    model, history = train(domain=domain, bc_fn=bc_nested, config=config, use_ansatz=True)
+    model, history = train(domain=domain, bc_fn=bc_nested, config=config)
     plot_results(model, domain=domain, filename='nested_snowflakes.png')
     return model, domain
 
@@ -124,29 +124,31 @@ if __name__ == "__main__":
                         help="Execution mode (default: nested)")
     args = parser.parse_args()
 
-    # Ansatz-optimized High-Fidelity configuration for fractal domains
-    ansatz_config = {
+    # Stabilized configuration with Vertex Pinning and Reduced Spectral Ringing
+    config = {
         "num_layers": 4,             
         "hidden_dim": 64,            
         "activation": "sine",
         "adaptive_activations": False, 
-        "omega": 15.0,               # Lower omega since boundaries are handled perfectly
-        "adam_epochs": 3000,         
-        "lbfgs_epochs": 500,        
-        "adam_lr": 0.001,           
-        "lbfgs_points_domain": 4000, 
-        "lbfgs_points_bc": 0,        # No BC points needed!
-        "lambda_bc": 0.0,            # Ignored
-        "lambda_range": 0.0,         # Ansatz guarantees range natively!
-        "lambda_grad_bc": 0.0,       # Ignored
+        "use_fourier_features": False, # Disabled to reduce spectral ringing at corners
+        "omega": 15.0,               # Lower omega for smoother function approximation
+        "adam_epochs": 4000,         
+        "lbfgs_epochs": 800,        
+        "adam_lr": 0.001,            # Increased slightly for stable convergence
+        "lbfgs_points_domain": 5000, 
+        "lbfgs_points_bc": 3000,
+        "lambda_bc": 200.0,          
+        "lambda_range": 100.0,       
+        "lambda_grad_bc": 2.0,       
         "use_adaptive_sampling": True, 
         "adaptive_every": 100,       
-        "use_self_adaptive_weights": False, # PDE is the only loss, no weights needed!
+        "use_self_adaptive_weights": True, 
+        "adaptive_weight_every": 100,      
     }
 
     if args.mode == 'snowflake':
         solve_koch_snowflake_example()
     elif args.mode == 'compare':
-        compare_pinn_fem(config=ansatz_config)
+        compare_pinn_fem(config=config)
     else:
-        solve_nested_snowflakes_example(config=ansatz_config)
+        solve_nested_snowflakes_example(config=config)

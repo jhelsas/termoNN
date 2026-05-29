@@ -78,9 +78,10 @@ def generate_adaptive_domain_data(model, n_points, device='cpu', domain=None, f_
     
     return x_cand[indices].detach(), y_cand[indices].detach()
 
-def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
+def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None, include_vertices=True):
     """
     Generates boundary points, target values, and normals.
+    If include_vertices is True, ensures geometric corners are explicitly included.
     """
     if domain is None:
         # Simplistic fallback for square (no normals returned)
@@ -103,7 +104,7 @@ def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None):
         return x_bc, y_bc, u_bc, torch.zeros((len(x_bc), 2), device=device)
 
     # Use the custom domain logic
-    x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device)
+    x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device, include_vertices=include_vertices)
     if bc_fn is not None:
         import inspect
         sig = inspect.signature(bc_fn)

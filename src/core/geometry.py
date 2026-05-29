@@ -72,8 +72,10 @@ class PolygonDomain:
         y = torch.cat(y_res)[:n_points].to(dev)
         return x, y
 
-    def sample_boundary(self, n_points, device=None):
-        """Samples points along the edges and returns coordinates, polygon IDs, and normals."""
+    def sample_boundary(self, n_points, device=None, include_vertices=True):
+        """Samples points along the edges and returns coordinates, polygon IDs, and normals.
+        If include_vertices is True, perfectly pins the exact vertices in the batch.
+        """
         dev = device or self.device
         
         def get_edge_data(poly):
@@ -103,20 +105,27 @@ class PolygonDomain:
         ids = torch.cat(edge_ids)
         normals = torch.cat(edge_normals)
         
-        # Ensure uniformly distributed sampling by repeating proportional allocation
         num_edges = len(lens)
-        # Calculate exactly how many points should be on each edge based on its length
-        edge_proportions = lens / lens.sum()
-        points_per_edge = torch.round(edge_proportions * n_points).long()
         
-        # Adjust if rounding caused a mismatch with n_points
-        diff = n_points - points_per_edge.sum().item()
+        # Vertex Pinning: allocate points to the exact vertices
+        if include_vertices and n_points >= num_edges:
+            n_random = n_points - num_edges
+        else:
+            n_random = n_points
+            include_vertices = False
+            
+        # Ensure uniformly distributed sampling by repeating proportional allocation
+        edge_proportions = lens / lens.sum()
+        points_per_edge = torch.round(edge_proportions * n_random).long()
+        
+        # Adjust if rounding caused a mismatch
+        diff = n_random - points_per_edge.sum().item()
         if diff > 0:
             # Add missing points to the longest edges
             _, top_indices = torch.topk(lens, diff)
             points_per_edge[top_indices] += 1
         elif diff < 0:
-            # Remove extra points from the longest edges (simplistic approach)
+            # Remove extra points from the longest edges
             _, top_indices = torch.topk(lens, -diff)
             points_per_edge[top_indices] -= 1
             
@@ -124,10 +133,19 @@ class PolygonDomain:
                              for i, count in enumerate(points_per_edge)])
         
         # Random distribution along the chosen edges
-        t = torch.rand(n_points, 1, device=self.device)
-        sampled_pts = starts[indices] + t * vecs[indices]
-        sampled_ids = ids[indices]
-        sampled_normals = normals[indices]
+        t = torch.rand(n_random, 1, device=self.device)
+        rand_pts = starts[indices] + t * vecs[indices]
+        rand_ids = ids[indices]
+        rand_normals = normals[indices]
+        
+        if include_vertices:
+            sampled_pts = torch.cat([starts, rand_pts])
+            sampled_ids = torch.cat([ids, rand_ids])
+            sampled_normals = torch.cat([normals, rand_normals])
+        else:
+            sampled_pts = rand_pts
+            sampled_ids = rand_ids
+            sampled_normals = rand_normals
         
         return sampled_pts[:, 0].to(dev), sampled_pts[:, 1].to(dev), sampled_ids.to(dev), sampled_normals.to(dev)
 

@@ -39,7 +39,22 @@ class TestGeometry(PINNTestCase):
         inside = domain.is_inside(x, y)
         self.assertTrue(torch.all(inside))
 
-    def test_polygon_boundary_sampling(self):
+    def test_sample_boundary_vertex_pinning(self):
+        """Verifies that boundary sampling explicitly includes vertices when requested."""
+        square = [(0, 0), (1, 0), (1, 1), (0, 1)]
+        domain = PolygonDomain(square, device=self.device)
+        
+        # Sample exactly the number of vertices + 2 random points
+        x, y, _, _ = domain.sample_boundary(6, include_vertices=True)
+        
+        # Check if the 4 vertices (0,0), (1,0), (1,1), (0,1) are in the result
+        points = torch.stack([x, y], dim=1)
+        vertices = torch.tensor(square, dtype=torch.float32, device=self.device)
+        
+        # For each vertex, check if there's an exact match in the sampled points
+        for v in vertices:
+            matches = torch.all(torch.isclose(points, v, atol=1e-5), dim=1)
+            self.assertTrue(torch.any(matches), f"Vertex {v} was not pinned in boundary sampling.")
         """Verifies boundary sampling returns points on the edges and correct IDs."""
         outer = torch.tensor([(0, 0), (1, 0), (1, 1), (0, 1)])
         domain = PolygonDomain(outer, device=self.device)

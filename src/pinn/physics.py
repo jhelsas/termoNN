@@ -172,5 +172,4 @@ def energy_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, area: 
         f = f_fn(x, y).squeeze()
         energy = energy + f * u.squeeze()
         
-    # Monte Carlo approximation of the energy integral
     return torch.mean(energy) * area

@@ -150,8 +150,8 @@ if __name__ == "__main__":
         "adaptive_every": 100,       
         "use_self_adaptive_weights": True, 
         "adaptive_weight_every": 100,      
-        "use_energy": False,          # Deep Ritz Method (Energy Formulation)
-        "use_sobolev": True,
+        "use_energy": True,          # Deep Ritz Method (Energy Formulation)
+        "use_sobolev": False,
         "sobolev_h1_weight": 1e-4, 
         "use_ansatz": True            # Hard-constrain the boundary conditions
     }

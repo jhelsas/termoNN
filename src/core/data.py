@@ -59,12 +59,20 @@ def generate_adaptive_domain_data(model, n_points, device='cpu', domain=None, f_
         else:
             grads = torch.autograd.grad(u, coords, grad_outputs=torch.ones_like(u), create_graph=True)[0]
             u_x, u_y = grads[:, 0], grads[:, 1]
+            f = f_fn(x_cand, y_cand) if f_fn is not None else torch.zeros_like(u_x)
             
-            u_xx = torch.autograd.grad(u_x, coords, grad_outputs=torch.ones_like(u_x), create_graph=True)[0][:, 0]
-            u_yy = torch.autograd.grad(u_y, coords, grad_outputs=torch.ones_like(u_y), create_graph=True)[0][:, 1]
-            
-            f = f_fn(x_cand, y_cand) if f_fn is not None else torch.zeros_like(u_xx)
-            residue = torch.abs(u_xx + u_yy - f.squeeze())
+            use_energy = config and config.get("use_energy", False)
+            if use_energy:
+                # For energy formulation, the "residue" of the functional J(u) = 1/2 |grad u|^2 + fu
+                # is the magnitude of its integrand to find regions of high energy density
+                # (which are typically where the function varies most to satisfy BCs)
+                grad_norm_sq = u_x**2 + u_y**2
+                residue = 0.5 * grad_norm_sq + f.squeeze() * u.squeeze()
+            else:
+                # Standard strong-form Laplacian residue
+                u_xx = torch.autograd.grad(u_x, coords, grad_outputs=torch.ones_like(u_x), create_graph=True)[0][:, 0]
+                u_yy = torch.autograd.grad(u_y, coords, grad_outputs=torch.ones_like(u_y), create_graph=True)[0][:, 1]
+                residue = torch.abs(u_xx + u_yy - f.squeeze())
         
         # 2. Add Range Violation Error to selection metric
         # Using a higher-order penalty (pow 4) to create a much stronger 

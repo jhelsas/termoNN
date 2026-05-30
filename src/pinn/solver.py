@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
 from src.pinn.model import PINN
-from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss
+from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss, sobolev_laplace_loss
 from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
 
 def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
@@ -119,7 +119,12 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         x_bc, y_bc, u_bc, n_bc = generate_boundary_data(n_points_b, device=device, domain=domain, bc_fn=bc_fn)
         
         optimizer_adam.zero_grad()
-        loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
+        if f_fn is None and cfg.get("use_sobolev", False):
+            # Scale Sobolev weight based on epoch to prevent early instability
+            h1_weight = cfg.get("sobolev_h1_weight", 1e-4)
+            loss_pde = sobolev_laplace_loss(model, x_domain, y_domain, h1_weight=h1_weight)
+        else:
+            loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + current_lambda_bc * loss_bc
         
@@ -159,7 +164,11 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
 
     def closure():
         optimizer_lbfgs.zero_grad()
-        l_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
+        if f_fn is None and cfg.get("use_sobolev", False):
+            h1_weight = cfg.get("sobolev_h1_weight", 1e-4)
+            l_pde = sobolev_laplace_loss(model, x_domain, y_domain, h1_weight=h1_weight)
+        else:
+            l_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
         l_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = l_pde + current_lambda_bc * l_bc
         

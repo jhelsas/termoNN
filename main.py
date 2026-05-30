@@ -149,6 +149,8 @@ if __name__ == "__main__":
         "adaptive_every": 100,       
         "use_self_adaptive_weights": True, 
         "adaptive_weight_every": 100,      
+        "use_sobolev": True,
+        "sobolev_h1_weight": 1e-4, # Reduced from 0.1 to prevent gradient explosion
     }
 
     if args.mode == 'snowflake':

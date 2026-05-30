@@ -181,8 +181,11 @@ class TestModel(PINNTestCase):
         """Architecture Validation: Verifies Fourier mapping changes input dimension."""
         hidden_dim = 64
         model = PINN(input_dim=2, hidden_dim=hidden_dim, use_fourier_features=True)
-        # B matrix should be (2, 32)
-        self.assertEqual(model.B.shape, (2, 32))
+        # We now use B_list for multi-scale mapping
+        self.assertTrue(hasattr(model, 'B_list'))
+        # Total mapping dim should be hidden_dim // 2
+        total_cols = sum(B.shape[1] for B in model.B_list)
+        self.assertEqual(total_cols, hidden_dim // 2)
         # First linear layer should accept 64 (32 sin + 32 cos)
         self.assertEqual(model.layers[0].in_features, 64)
 

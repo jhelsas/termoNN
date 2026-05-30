@@ -60,6 +60,39 @@ def poisson_loss(model: torch.nn.Module,
         
     return torch.mean((u_xx + u_yy - f)**2)
 
+def sobolev_laplace_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, h1_weight: float = 1e-4) -> torch.Tensor:
+    r"""
+    Computes the Sobolev-norm (Gradient-Enhanced) Laplace loss.
+    L = ||\Delta u||^2 + h1_weight * ||\nabla(\Delta u)||^2
+    
+    Default h1_weight is very small because 3rd-order derivatives 
+    scale with frequency^3.
+    """
+    coords = torch.stack([x, y], dim=1).requires_grad_(True)
+    u = model(coords)
+    
+    # 1. First derivatives
+    grads = torch.autograd.grad(u, coords, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+    u_x, u_y = grads[:, 0], grads[:, 1]
+    
+    # 2. Second derivatives (Laplacian)
+    u_xx = torch.autograd.grad(u_x, coords, grad_outputs=torch.ones_like(u_x), create_graph=True)[0][:, 0]
+    u_yy = torch.autograd.grad(u_y, coords, grad_outputs=torch.ones_like(u_y), create_graph=True)[0][:, 1]
+    laplacian = u_xx + u_yy
+    
+    # 3. Gradients of the Laplacian (Sobolev part)
+    laplacian_grads = torch.autograd.grad(
+        laplacian, coords, 
+        grad_outputs=torch.ones_like(laplacian), 
+        create_graph=True
+    )[0]
+    l_grad_x, l_grad_y = laplacian_grads[:, 0], laplacian_grads[:, 1]
+    
+    loss_l2 = torch.mean(laplacian**2)
+    loss_h1 = torch.mean(l_grad_x**2 + l_grad_y**2)
+    
+    return loss_l2 + h1_weight * loss_h1
+
 def laplace_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
     Computes the Laplace equation loss: u_xx + u_yy = 0.

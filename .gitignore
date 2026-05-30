@@ -153,4 +153,7 @@ cython_debug/
 .vscode/
 
 # Project-specific ignores
-solution.png
+*.png
+*.npz
+cp
+manifest.txt

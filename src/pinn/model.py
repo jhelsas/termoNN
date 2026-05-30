@@ -22,8 +22,8 @@ class Sine(nn.Module):
 
 class PINN(nn.Module):
     """
-    Advanced PINN with Fourier Feature Mapping and Residual Skip Connections.
-    Designed for high-accuracy field reconstruction on fractal domains.
+    Advanced PINN with Multi-Scale Fourier Feature Mapping and Residual Skip Connections.
+    Designed for high-accuracy field reconstruction on fractal domains with sharp corners.
     """
     def __init__(self, input_dim=2, hidden_dim=64, output_dim=1, num_layers=4, 
                  activation='sine', omega=30.0, adaptive_activations=False,
@@ -34,12 +34,22 @@ class PINN(nn.Module):
         self.use_fourier_features = use_fourier_features
         self.output_transform = output_transform
         
-        # 1. Fourier Feature Mapping (Input Embedding)
-        # This allows the network to capture high-frequency fractal details
-        mapping_dim = hidden_dim // 2
+        # 1. Multi-Scale Fourier Feature Mapping (Input Embedding)
+        # We use multiple frequency banks to capture both global field trends 
+        # and local high-curvature fractal details.
         if use_fourier_features:
-            self.register_buffer("B", torch.randn(input_dim, mapping_dim) * fourier_scale)
-            current_input_dim = mapping_dim * 2
+            # scales: [1.0, 5.0, 10.0, 50.0]
+            scales = [1.0, 5.0, 10.0, 50.0]
+            
+            # Ensure mapping_dim is at least 1 per scale
+            mapping_dim_per_scale = max(1, hidden_dim // (2 * len(scales)))
+            
+            self.B_list = nn.ParameterList()
+            for s in scales:
+                B = torch.randn(input_dim, mapping_dim_per_scale) * s
+                self.B_list.append(nn.Parameter(B, requires_grad=False))
+                
+            current_input_dim = mapping_dim_per_scale * 2 * len(scales)
         else:
             current_input_dim = input_dim
 
@@ -95,10 +105,14 @@ class PINN(nn.Module):
                 layer.bias.uniform_(-1e-6, 1e-6)
 
     def forward(self, x):
-        # Apply Fourier Mapping
+        # Apply Multi-Scale Fourier Mapping
         if self.use_fourier_features:
-            x_proj = 2 * torch.pi * x @ self.B
-            x = torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+            features = []
+            for B in self.B_list:
+                x_proj = 2 * torch.pi * x @ B
+                features.append(torch.sin(x_proj))
+                features.append(torch.cos(x_proj))
+            x = torch.cat(features, dim=-1)
             
         # Forward through layers with Skip Connections
         h = self.act[0](self.layers[0](x))

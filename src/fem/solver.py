@@ -1,7 +1,7 @@
 import numpy as np
 
 import torch
-from skfem import *
+from skfem import MeshTri, ElementTriP1, Basis, asm, LinearForm, condense, solve
 from skfem.models.poisson import laplace
 from typing import Callable, Optional, Tuple
 from scipy.spatial import Delaunay
@@ -58,8 +58,8 @@ def solve_fem(domain,
                             torch.from_numpy(centers[:, 1]).float().to(domain.device))
     mask = mask.cpu().numpy()
     
-    # Create the filtered mesh
-    mesh = MeshTri(points.T, tri.simplices[mask].T)
+    # Create the filtered mesh and remove points that are not part of any triangle (e.g. inside holes)
+    mesh = MeshTri(points.T, tri.simplices[mask].T).remove_unused_nodes()
     
     # 2. FEM Assembly
     basis = Basis(mesh, ElementTriP1())
@@ -114,12 +114,11 @@ def solve_fem(domain,
     else:
         u_bc_vals = bc_fn(xt_b, yt_b).cpu().numpy().flatten()
     
-    # Create full-size BC vector to avoid IndexError in condense
-    x_bc = np.zeros(basis.N)
-    x_bc[boundary_dofs] = u_bc_vals
-        
-    # Solve linear system using skfem.solve
-    # 'D' expects the indices of the Dirichlet DOFs, and 'x' expects the full vector
-    u = solve(*condense(A, b, x=x_bc, D=boundary_dofs))
+    # 4. Solve using skfem.solve
+    # 'x' must be the boundary values for ALL DOFs.
+    x_init = np.zeros(basis.N)
+    x_init[boundary_dofs] = u_bc_vals
+    
+    u = solve(*condense(A, b, x=x_init, D=boundary_dofs))
     
     return mesh, u

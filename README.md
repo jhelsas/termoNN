@@ -14,11 +14,12 @@ This project is an **exploratory implementation** of PINNs for steady-state heat
 ### Key Features
 - **Complex Geometries**: Support for arbitrary polygons with multiple internal holes and fractal boundaries (e.g., Koch Snowflake).
 - **High-Fidelity Representation**: Multi-frequency SIREN with **Fourier Feature Mapping** and **Stabilized Residual Skip Connections** (learnable scaling).
+- **Strict Boundary Enforcement**: Support for **Exact Boundary Ansatz** using differentiable geometric distance functions to satisfy BCs by construction.
 - **Adaptive Training**: 
     - **Self-Adaptive Loss Weighting**: Dynamically balances PDE and Boundary losses based on gradient statistics.
     - **RAR Sampling**: Residual-based Adaptive Refinement that concentrates collocation points in regions with high PDE residue.
     - **Full Diagnostics**: Comprehensive training history tracking for post-mortem analysis of loss and weight dynamics.
-- **Verification**: Integrated FEM comparison suite using `scikit-fem`.
+- **Verification**: Side-by-side **PINN vs FEM comparison** plots with automated error mapping.
 
 ### Project Status (Exploratory)
 This is an **early-stage research project**. Current limitations include:
@@ -57,8 +58,11 @@ After training, the model will save a contour plot of the solution to `solution.
 ### PINN vs FEM Comparison
 To solve a complex geometry (like a nested snowflake annulus) with both PINN and FEM and compare the error:
 ```bash
-python comparison_results.py
+python main.py --mode compare
 ```
+This generates:
+- `comparison_nested.png`: Side-by-side view of FEM solution, PINN solution, and the absolute error map.
+- `comparison_nested_history.png`: Training convergence logs and weight adaptation history.
 
 ### Running Tests & Coverage
 We maintain a comprehensive suite of 100+ tests with 95% code coverage. Our testing strategy follows a hierarchical approach:

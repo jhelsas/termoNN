@@ -5,7 +5,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from src.pinn.solver import train
-from src.core.viz import plot_results
+from src.core.viz import plot_results, plot_history, plot_comparison
 from src.core.geometry import PolygonDomain, generate_koch_snowflake
 from src.core.data import get_device
 from src.fem.solver import solve_fem
@@ -42,6 +42,7 @@ def solve_koch_snowflake_example():
     print("\n--- Scenario: harmonic ---")
     model, history = train(domain=domain, bc_fn=bc_harmonic, config=config)
     plot_results(model, domain=domain, filename='snowflake_harmonic.png')
+    plot_history(history, filename='snowflake_harmonic_history.png')
 
 def solve_nested_snowflakes_example(config=None):
     """Example: Solving Laplace Equation in a domain bounded by two Koch Snowflakes."""
@@ -62,6 +63,7 @@ def solve_nested_snowflakes_example(config=None):
 
     model, history = train(domain=domain, bc_fn=bc_nested, config=config)
     plot_results(model, domain=domain, filename='nested_snowflakes.png')
+    plot_history(history, filename='nested_snowflakes_history.png')
     return model, domain
 
 def compare_pinn_fem(config=None):
@@ -94,8 +96,11 @@ def compare_pinn_fem(config=None):
     
     pinn_model, history = train(domain=domain, bc_fn=bc_nested, config=config)
     
-    # 4. Interpolate and Compare
-    print("Step 3: Comparing Results...")
+    # 4. Comparison and Visualization
+    print("Step 3: Comparing and Visualizing Results...")
+    plot_comparison(pinn_model, mesh, u_fem, domain, filename='comparison_nested.png', resolution=250)
+    plot_history(history, filename='comparison_nested_history.png')
+    
     x_test, y_test = domain.sample_interior(5000)
     coords = torch.stack([x_test, y_test], dim=1).to(get_device())
     u_pinn = pinn_model(coords).detach().cpu().numpy().flatten()

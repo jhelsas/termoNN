@@ -13,8 +13,9 @@ PINNs represent a paradigm shift in scientific computing, where neural networks 
 ### Key Technologies
 - **Python 3.8+**: Core language.
 - **PyTorch**: Used for the MLP architecture and its powerful `autograd` engine for computing PDE residues ($u_{xx}, u_{yy}$).
-- **NumPy & Matplotlib**: Data handling and visualization of the heat distribution.
-- **Unittest**: Comprehensive test suite for physics validation and geometric correctness.
+- **Scikit-FEM**: Used for ground-truth verification and benchmarking.
+- **NumPy & Matplotlib**: Data handling and high-fidelity visualization (including error maps and training history).
+- **Pytest**: Comprehensive test suite with coverage tracking.
 
 ### High-Level Architecture
 - **Model (`src/pinn/model.py`)**: High-capacity architecture supporting both **Tanh** and **SIREN (Sine)** activations, with **Multi-frequency spectral decomposition**, **Fourier Feature Mapping**, **Stabilized Residual Skip Connections** (learnable scaling), and **Self-Adaptive** learnable scales.
@@ -62,9 +63,9 @@ Always work within a virtual environment to ensure dependency isolation:
 python main.py
 
 # Run PINN vs FEM Benchmarks
-python comparison_results.py
+python main.py --mode compare
 
-# Run full test suite with coverage (100+ tests)
+# Run full test suite with coverage
 pytest --cov=src tests/
 ```
 
@@ -108,8 +109,9 @@ We follow a structured commit convention to maintain a clean and searchable hist
 ### Testing Approach
 Our test suite follows a "Physics-First" verification strategy using `pytest` and `coverage.py`:
 - **Unit Tests**: Check individual components (shapes, initialization, sampling bounds).
-- **Geometric Validation**: Verifies ray-casting (inside/outside) and boundary sampling for complex polygons and holes.
+- **Geometric Validation**: Verifies ray-casting (inside/outside), boundary sampling, and **exact distance functions**.
 - **Physics Validation**: Verify the Laplace residue against analytical solutions (Linear, Quad, Harmonic).
+- **Ansatz Verification**: Strict checking of boundary condition enforcement through geometric distance-based models.
 - **FEM Benchmarking**: Continuous verification of PINN solutions against a traditional Finite Element solver.
 - **Integration Tests**: Ensure the optimizer successfully reduces the loss on complex domains.
 - **Coverage**: We maintain >95% code coverage to ensure all physics paths are validated.

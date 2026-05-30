@@ -32,6 +32,8 @@ def generate_domain_data(n_points=1000, device='cpu', domain=None):
         y = torch.rand(n_points, device=device)
         return x, y
     
+    if hasattr(domain, 'sample_curvature_biased_interior'):
+        return domain.sample_curvature_biased_interior(n_points, device)
     return domain.sample_interior(n_points, device)
 
 def generate_adaptive_domain_data(model, n_points, device='cpu', domain=None, f_fn=None, config=None):
@@ -104,7 +106,11 @@ def generate_boundary_data(n_points=200, device='cpu', domain=None, bc_fn=None, 
         return x_bc, y_bc, u_bc, torch.zeros((len(x_bc), 2), device=device)
 
     # Use the custom domain logic
-    x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device, include_vertices=include_vertices)
+    if hasattr(domain, 'sample_curvature_biased_boundary'):
+        x_bc, y_bc, b_ids, normals = domain.sample_curvature_biased_boundary(n_points, device)
+    else:
+        x_bc, y_bc, b_ids, normals = domain.sample_boundary(n_points, device, include_vertices=include_vertices)
+        
     if bc_fn is not None:
         import inspect
         sig = inspect.signature(bc_fn)

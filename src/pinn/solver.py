@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
-from src.pinn.model import PINN
-from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss, sobolev_laplace_loss
+from src.pinn.model import PINN, ExactBoundaryAnsatz
+from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss, sobolev_laplace_loss, energy_loss
 from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
 
 def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
@@ -68,6 +68,19 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         output_transform=cfg.get("output_transform", None)
     ).to(device)
     
+    # Wrap with Ansatz if requested
+    if cfg.get("use_ansatz", False) and domain is not None:
+        print("  - Ansatz: ENABLED (Exact Boundary Enforcement)")
+        model = ExactBoundaryAnsatz(model, domain, bc_mode='nested').to(device)
+        # If using Ansatz, boundary conditions are satisfied by construction.
+        # We can set lambda_bc to 0 to remove it from the loss entirely.
+        current_lambda_bc = 0.0
+        cfg["lambda_bc"] = 0.0
+    else:
+        current_lambda_bc = cfg["lambda_bc"]
+        
+    current_lambda_range = cfg["lambda_range"]
+
     # Stage 1: Adam
     optimizer_adam = optim.Adam(model.parameters(), lr=cfg["adam_lr"])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer_adam, 'min', patience=200, factor=0.5)
@@ -76,13 +89,11 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
     n_points_b = cfg.get("lbfgs_points_bc", 600)
     
     x_domain, y_domain = generate_domain_data(n_points_d, device=device, domain=domain)
-    current_lambda_bc = cfg["lambda_bc"]
-    current_lambda_range = cfg["lambda_range"]
 
     print(f"--- Stage 1: Adam Optimization ({cfg['adam_epochs']} epochs) ---")
     for epoch in range(cfg["adam_epochs"]):
-        # Self-Adaptive Weighting
-        if cfg["use_self_adaptive_weights"] and epoch > 0 and epoch % cfg["adaptive_weight_every"] == 0:
+        # Self-Adaptive Weighting (Only if not using Ansatz)
+        if cfg["use_self_adaptive_weights"] and not cfg.get("use_ansatz", False) and epoch > 0 and epoch % cfg["adaptive_weight_every"] == 0:
             with torch.set_grad_enabled(True):
                 model.zero_grad()
                 l_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
@@ -119,12 +130,17 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         x_bc, y_bc, u_bc, n_bc = generate_boundary_data(n_points_b, device=device, domain=domain, bc_fn=bc_fn)
         
         optimizer_adam.zero_grad()
-        if f_fn is None and cfg.get("use_sobolev", False):
-            # Scale Sobolev weight based on epoch to prevent early instability
+        if cfg.get("use_energy", False):
+            # Energy formulation (Deep Ritz)
+            loss_pde = energy_loss(model, x_domain, y_domain, area=domain.area if domain else 1.0, f_fn=f_fn)
+        elif f_fn is None and cfg.get("use_sobolev", False):
+            # Sobolev formulation
             h1_weight = cfg.get("sobolev_h1_weight", 1e-4)
             loss_pde = sobolev_laplace_loss(model, x_domain, y_domain, h1_weight=h1_weight)
         else:
+            # Standard strong form
             loss_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
+        
         loss_bc = boundary_loss(model, x_bc, y_bc, u_bc)
         total_loss = loss_pde + current_lambda_bc * loss_bc
         
@@ -164,7 +180,9 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
 
     def closure():
         optimizer_lbfgs.zero_grad()
-        if f_fn is None and cfg.get("use_sobolev", False):
+        if cfg.get("use_energy", False):
+            l_pde = energy_loss(model, x_domain, y_domain, area=domain.area if domain else 1.0, f_fn=f_fn)
+        elif f_fn is None and cfg.get("use_sobolev", False):
             h1_weight = cfg.get("sobolev_h1_weight", 1e-4)
             l_pde = sobolev_laplace_loss(model, x_domain, y_domain, h1_weight=h1_weight)
         else:

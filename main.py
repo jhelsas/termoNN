@@ -91,7 +91,8 @@ def compare_pinn_fem(config=None):
             "lbfgs_epochs": 1000,
             "lambda_bc": 200.0,
             "use_adaptive_sampling": True,
-            "adaptive_every": 100
+            "adaptive_every": 100,
+            "use_ansatz": True  # Enable Exact Boundary Ansatz
         }
     
     pinn_model, history = train(domain=domain, bc_fn=bc_nested, config=config)
@@ -149,8 +150,10 @@ if __name__ == "__main__":
         "adaptive_every": 100,       
         "use_self_adaptive_weights": True, 
         "adaptive_weight_every": 100,      
+        "use_energy": False,          # Deep Ritz Method (Energy Formulation)
         "use_sobolev": True,
-        "sobolev_h1_weight": 1e-4, # Reduced from 0.1 to prevent gradient explosion
+        "sobolev_h1_weight": 1e-4, 
+        "use_ansatz": True            # Hard-constrain the boundary conditions
     }
 
     if args.mode == 'snowflake':

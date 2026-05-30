@@ -143,3 +143,34 @@ def range_loss(u: torch.Tensor, min_val: float = 0.0, max_val: float = 1.0) -> t
     """
     penalty = torch.relu(u - max_val)**2 + torch.relu(min_val - u)**2
     return torch.mean(penalty)
+
+def energy_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, area: float = 1.0, f_fn=None) -> torch.Tensor:
+    """
+    Computes the Dirichlet Energy (Deep Ritz Method):
+    J(u) = Integral( 0.5 * |grad u|^2 + f * u ) dOmega
+    
+    This only requires 1st order derivatives, making it more stable for 
+    non-convex domains with sharp corners.
+    """
+    coords = torch.stack([x, y], dim=1).requires_grad_(True)
+    u = model(coords)
+    
+    grads = torch.autograd.grad(
+        u, coords, 
+        grad_outputs=torch.ones_like(u), 
+        create_graph=True
+    )[0]
+    
+    # |grad u|^2 = u_x^2 + u_y^2
+    grad_norm_sq = torch.sum(grads**2, dim=1)
+    
+    energy = 0.5 * grad_norm_sq
+    
+    # PINN solves: u_xx + u_yy = f
+    # The corresponding energy functional adds + f * u
+    if f_fn is not None:
+        f = f_fn(x, y).squeeze()
+        energy = energy + f * u.squeeze()
+        
+    # Monte Carlo approximation of the energy integral
+    return torch.mean(energy) * area

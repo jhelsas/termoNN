@@ -158,9 +158,18 @@ class ExactBoundaryAnsatz(nn.Module):
             
             # G(x) = d_out / (d_in + d_out)  => 1 at inner (d_in=0), 0 at outer (d_out=0)
             # D(x) = d_in * d_out => 0 at both boundaries
-            d_sum = d_in + d_out + 1e-8
+            
+            # Smooth interpolation function to avoid singularities
+            # We add a tiny epsilon to the denominator to prevent division by zero
+            d_sum = d_in + d_out + 1e-12
+            
+            # Target BC: 1 at inner boundary, 0 at outer boundary
             G = (d_out / d_sum).unsqueeze(1)
-            D = (d_in * d_out).unsqueeze(1)
+            
+            # Distance field: 0 at both boundaries, smooth inside
+            # tanh is used to bound the distance multiplier so it doesn't 
+            # magnify the network outputs too much in the deep interior
+            D = torch.tanh(d_in * d_out).unsqueeze(1)
             
             return G + D * n_out
         else:

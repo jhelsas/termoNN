@@ -22,6 +22,112 @@ class PolygonDomain:
         combined = torch.cat(all_pts, dim=0)
         self.min_x, self.min_y = combined.min(dim=0).values
         self.max_x, self.max_y = combined.max(dim=0).values
+        
+        # Precompute Area for Monte Carlo integration scaling
+        self.area = self._calculate_area()
+
+    def _calculate_area(self):
+        """Calculates total area (outer - holes) using Shoelace formula."""
+        def poly_area(p):
+            x, y = p[:, 0], p[:, 1]
+            return 0.5 * torch.abs(torch.dot(x, torch.roll(y, 1)) - torch.dot(y, torch.roll(x, 1)))
+        
+        total = poly_area(self.vertices)
+        for hole in self.holes:
+            total -= poly_area(hole)
+        return total.item()
+
+    def sample_curvature_biased_interior(self, n_points, device=None, noise_scale=0.05):
+        """
+        Samples interior points with 50% uniform distribution and 50% Gaussian clusters 
+        around the geometric vertices to resolve sharp corner singularities.
+        """
+        dev = device or self.device
+        n_uniform = n_points // 2
+        ux, uy = self.sample_interior(n_uniform, device=dev)
+        
+        n_vertex = n_points - n_uniform
+        all_polys = [self.vertices] + self.holes
+        all_v = torch.cat(all_polys, dim=0)
+        
+        vx_res, vy_res = [], []
+        
+        # Rejection sampling around vertices
+        while sum(len(b) for b in vx_res) < n_vertex:
+            # Pick random vertices
+            idx = torch.randint(0, len(all_v), (n_vertex * 2,), device=self.device)
+            v = all_v[idx]
+            
+            # Add Gaussian noise
+            noise = torch.randn_like(v) * noise_scale
+            cand = v + noise
+            
+            # Keep only those inside the domain
+            mask = self.is_inside(cand[:, 0], cand[:, 1])
+            vx_res.append(cand[mask, 0])
+            vy_res.append(cand[mask, 1])
+            
+        vx = torch.cat(vx_res)[:n_vertex].to(dev)
+        vy = torch.cat(vy_res)[:n_vertex].to(dev)
+        
+        return torch.cat([ux, vx]), torch.cat([uy, vy])
+
+    def sample_curvature_biased_boundary(self, n_points, device=None):
+        """
+        Samples points along the boundary, biased toward vertices (high curvature).
+        """
+        dev = device or self.device
+        
+        # 1. Base uniform sampling (50%)
+        n_uniform = n_points // 2
+        ux, uy, uids, unormals = self.sample_boundary(n_uniform, device=dev, include_vertices=True)
+        
+        # 2. Vertex-centered sampling (50%)
+        n_vertex = n_points - n_uniform
+        all_polys = [self.vertices] + self.holes
+        all_v = torch.cat(all_polys, dim=0)
+        
+        # Sample near each vertex
+        n_per_v = max(1, n_vertex // len(all_v))
+        vx_res, vy_res, vids_res, vn_res = [], [], [], []
+        
+        for idx, poly in enumerate(all_polys):
+            for v_idx in range(len(poly)):
+                v = poly[v_idx]
+                # Sample in a tiny ball around the vertex
+                # We projects these back to the boundary for valid BC enforcement
+                eps = 0.01
+                t = torch.randn(n_per_v, 1, device=self.device) * eps
+                
+                # Use the two edges meeting at this vertex
+                p_prev = poly[(v_idx - 1) % len(poly)]
+                p_next = poly[(v_idx + 1) % len(poly)]
+                
+                v1 = (p_prev - v)
+                v2 = (p_next - v)
+                
+                # Sample along the two edges
+                s = torch.rand(n_per_v, 1, device=self.device) * eps
+                pts1 = v + s * (v1 / (torch.norm(v1) + 1e-12))
+                pts2 = v + s * (v2 / (torch.norm(v2) + 1e-12))
+                
+                vx_res.append(torch.cat([pts1[:, 0], pts2[:, 0]]))
+                vy_res.append(torch.cat([pts1[:, 1], pts2[:, 1]]))
+                vids_res.append(torch.full((2*n_per_v,), idx, dtype=torch.long, device=self.device))
+                # Approximate normals as the vertex normal (average of adjacent edge normals)
+                # For simplicity, we just use the first edge normal
+                n1 = torch.tensor([v1[1], -v1[0]], device=self.device)
+                n1 = n1 / (torch.norm(n1) + 1e-12)
+                vn_res.append(n1.repeat(2*n_per_v, 1))
+
+        vx = torch.cat(vx_res).to(dev)
+        vy = torch.cat(vy_res).to(dev)
+        vids = torch.cat(vids_res).to(dev)
+        vn = torch.cat(vn_res).to(dev)
+        
+        # Concatenate
+        return torch.cat([ux, vx])[:n_points], torch.cat([uy, vy])[:n_points], \
+               torch.cat([uids, vids])[:n_points], torch.cat([unormals, vn])[:n_points]
 
     def is_inside(self, x, y):
         """Vectorized point-in-polygon check using ray-casting in PyTorch."""
@@ -186,9 +292,13 @@ class PolygonDomain:
         # Add epsilon before sqrt to prevent infinite gradients at the exact boundary
         # Note: We use 1e-10 inside the sqrt, which means the distance will never be exactly 0.0
         # However, for the Ansatz tests to pass, we need the distance to be effectively 0 at the boundary.
-        # We handle this by subtracting the small offset from the final calculation if needed,
-        # but the current precision (1e-5 in the tests) should cover sqrt(1e-10) = 1e-5.
-        return torch.sqrt(min_dist_sq + 1e-10)
+        # We handle this by adding a small offset to the distance calculation.
+        # To make it smooth and prevent gradient explosions near the boundary, 
+        # we add an epsilon to the squared distance before taking the square root.
+        eps = 1e-10
+        # We explicitly subtract sqrt(eps) so the distance is exactly 0 at the boundary,
+        # otherwise the Ansatz tests fail because G(x) won't be exactly 0 or 1.
+        return torch.relu(torch.sqrt(min_dist_sq + eps) - torch.sqrt(torch.tensor(eps, device=self.device)))
 
 def generate_koch_snowflake(order=3, scale=1.0, center=(0.5, 0.5)):
     """

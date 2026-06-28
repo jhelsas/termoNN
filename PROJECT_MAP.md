@@ -1,19 +1,5 @@
 # Project Symbol Map (AST Summary)
 
-## `./comparison_results.py`
-### Classes
-- **FEMWrapper**
-  - `__init__()`
-  - `forward()`
-  - `device()`
-
-### Functions
-- `get_nested_domain()`
-- `bc_nested()`
-- `generate_fem_solution()`
-- `generate_pinn_solution()`
-- `compare_solutions()`
-
 ## `./generate_ast_map.py`
 ### Functions
 - `parse_file()`
@@ -22,8 +8,33 @@
 
 ## `./main.py`
 ### Functions
+- `bc_harmonic()`
+- `bc_nested()`
 - `solve_koch_snowflake_example()`
 - `solve_nested_snowflakes_example()`
+- `compare_pinn_fem()`
+
+## `./scripts/calculate_w.py`
+## `./scripts/run_test_energy.py`
+## `./scripts/test_energy_functional.py`
+### Classes
+- **Model**
+  - `__init__()`
+  - `forward()`
+
+## `./scripts/test_energy_issue.py`
+### Classes
+- **Model**
+  - `__init__()`
+  - `forward()`
+
+### Functions
+- `f_fn()`
+
+## `./scripts/test_solve_energy.py`
+### Functions
+- `f_fn()`
+- `bc_fn()`
 
 ## `./src/__init__.py`
 ## `./src/core/data.py`
@@ -38,9 +49,13 @@
 ### Classes
 - **PolygonDomain**
   - `__init__()`
+  - `_calculate_area()`
+  - `sample_curvature_biased_interior()`
+  - `sample_curvature_biased_boundary()`
   - `is_inside()`
   - `sample_interior()`
   - `sample_boundary()`
+  - `exact_distance()`
 
 ### Functions
 - `generate_koch_snowflake()`
@@ -48,6 +63,8 @@
 ## `./src/core/viz.py`
 ### Functions
 - `plot_results()`
+- `plot_history()`
+- `plot_comparison()`
 
 ## `./src/fem/__init__.py`
 ## `./src/fem/solver.py`
@@ -64,14 +81,20 @@
   - `_init_siren()`
   - `forward()`
   - `device()`
+- **ExactBoundaryAnsatz**
+  - `__init__()`
+  - `forward()`
+  - `device()`
 
 ## `./src/pinn/physics.py`
 ### Functions
 - `poisson_loss()`
+- `sobolev_laplace_loss()`
 - `laplace_loss()`
 - `boundary_loss()`
 - `boundary_gradient_loss()`
 - `range_loss()`
+- `energy_loss()`
 
 ## `./src/pinn/solver.py`
 ### Functions
@@ -85,6 +108,23 @@
   - `assertTensorsEqual()`
   - `assertTensorFinite()`
 
+## `./tests/test_advanced_robustness.py`
+### Classes
+- **TestAdvancedRobustness**
+  - `test_multiscale_spectral_capacity()`
+  - `test_adaptive_weights_sobolev_stability()`
+  - `test_distance_gradient_at_sharp_vertex()`
+  - `test_sobolev_memory_pressure()`
+
+## `./tests/test_ansatz.py`
+### Classes
+- **TestAnsatz**
+  - `setUp()`
+  - `test_ansatz_outer_boundary()`
+  - `test_ansatz_inner_boundary()`
+  - `test_ansatz_interior_gradients()`
+  - `test_ansatz_invalid_mode()`
+
 ## `./tests/test_consistency.py`
 ### Classes
 - **TestConsistency**
@@ -93,6 +133,14 @@
   - `test_spectral_omega_scalar_vs_tuple()`
   - `test_adaptive_weights_sanity()`
   - `test_multi_hole_geometry_overlap()`
+
+## `./tests/test_coverage_sweep.py`
+### Classes
+- **TestCoverageSweep**
+  - `test_solver_full_adaptive_path()`
+  - `test_geometry_remainder_logic()`
+  - `test_physics_poisson_none_source()`
+  - `test_data_device_fallbacks()`
 
 ## `./tests/test_data.py`
 ### Classes
@@ -110,6 +158,13 @@
   - `test_adaptive_sampling_determinism()`
   - `test_adaptive_sampling_error_targeting()`
   - `test_adaptive_sampling_range_targeting()`
+
+## `./tests/test_energy_physics.py`
+### Classes
+- **TestEnergyFormulation**
+  - `test_energy_loss_const()`
+  - `test_energy_loss_linear()`
+  - `test_area_calculation()`
 
 ## `./tests/test_fem.py`
 ### Classes
@@ -130,7 +185,7 @@
 - **TestGeometry**
   - `test_polygon_domain_is_inside()`
   - `test_polygon_domain_sampling()`
-  - `test_polygon_boundary_sampling()`
+  - `test_sample_boundary_vertex_pinning()`
   - `test_non_convex_sampling_success()`
   - `test_custom_bc_fn_mapping()`
   - `test_koch_snowflake_generation()`
@@ -183,6 +238,20 @@
   - `test_output_transform()`
   - `test_residual_connections()`
 
+## `./tests/test_modern_integration.py`
+### Classes
+- **TestModernFeaturesIntegration**
+  - `test_train_with_sobolev_and_multiscale()`
+  - `test_sobolev_config_toggle()`
+
+## `./tests/test_multiscale_fourier.py`
+### Classes
+- **TestMultiScaleFourier**
+  - `test_multiscale_initialization()`
+  - `test_mapping_dimension_logic()`
+  - `test_forward_pass_multiscale()`
+  - `test_fourier_features_disabled()`
+
 ## `./tests/test_physics.py`
 ### Classes
 - **TestPhysics**
@@ -222,6 +291,13 @@
   - `test_adaptive_weight_warmup_bounds()`
   - `test_gradient_consistency_with_no_source()`
 
+## `./tests/test_sobolev_physics.py`
+### Classes
+- **TestSobolevPhysics**
+  - `test_sobolev_loss_harmonic()`
+  - `test_sobolev_gradient_flow()`
+  - `test_sobolev_vs_standard_laplace()`
+
 ## `./tests/test_solver.py`
 ### Classes
 - **TestSolver**
@@ -256,9 +332,13 @@
 ### Classes
 - **PolygonDomain**
   - `__init__()`
+  - `_calculate_area()`
+  - `sample_curvature_biased_interior()`
+  - `sample_curvature_biased_boundary()`
   - `is_inside()`
   - `sample_interior()`
   - `sample_boundary()`
+  - `exact_distance()`
 
 ### Functions
 - `generate_koch_snowflake()`
@@ -266,6 +346,8 @@
 ## `src/core/viz.py`
 ### Functions
 - `plot_results()`
+- `plot_history()`
+- `plot_comparison()`
 
 ## `src/fem/__init__.py`
 ## `src/fem/solver.py`
@@ -282,14 +364,20 @@
   - `_init_siren()`
   - `forward()`
   - `device()`
+- **ExactBoundaryAnsatz**
+  - `__init__()`
+  - `forward()`
+  - `device()`
 
 ## `src/pinn/physics.py`
 ### Functions
 - `poisson_loss()`
+- `sobolev_laplace_loss()`
 - `laplace_loss()`
 - `boundary_loss()`
 - `boundary_gradient_loss()`
 - `range_loss()`
+- `energy_loss()`
 
 ## `src/pinn/solver.py`
 ### Functions
@@ -303,6 +391,23 @@
   - `assertTensorsEqual()`
   - `assertTensorFinite()`
 
+## `tests/test_advanced_robustness.py`
+### Classes
+- **TestAdvancedRobustness**
+  - `test_multiscale_spectral_capacity()`
+  - `test_adaptive_weights_sobolev_stability()`
+  - `test_distance_gradient_at_sharp_vertex()`
+  - `test_sobolev_memory_pressure()`
+
+## `tests/test_ansatz.py`
+### Classes
+- **TestAnsatz**
+  - `setUp()`
+  - `test_ansatz_outer_boundary()`
+  - `test_ansatz_inner_boundary()`
+  - `test_ansatz_interior_gradients()`
+  - `test_ansatz_invalid_mode()`
+
 ## `tests/test_consistency.py`
 ### Classes
 - **TestConsistency**
@@ -311,6 +416,14 @@
   - `test_spectral_omega_scalar_vs_tuple()`
   - `test_adaptive_weights_sanity()`
   - `test_multi_hole_geometry_overlap()`
+
+## `tests/test_coverage_sweep.py`
+### Classes
+- **TestCoverageSweep**
+  - `test_solver_full_adaptive_path()`
+  - `test_geometry_remainder_logic()`
+  - `test_physics_poisson_none_source()`
+  - `test_data_device_fallbacks()`
 
 ## `tests/test_data.py`
 ### Classes
@@ -328,6 +441,13 @@
   - `test_adaptive_sampling_determinism()`
   - `test_adaptive_sampling_error_targeting()`
   - `test_adaptive_sampling_range_targeting()`
+
+## `tests/test_energy_physics.py`
+### Classes
+- **TestEnergyFormulation**
+  - `test_energy_loss_const()`
+  - `test_energy_loss_linear()`
+  - `test_area_calculation()`
 
 ## `tests/test_fem.py`
 ### Classes
@@ -348,7 +468,7 @@
 - **TestGeometry**
   - `test_polygon_domain_is_inside()`
   - `test_polygon_domain_sampling()`
-  - `test_polygon_boundary_sampling()`
+  - `test_sample_boundary_vertex_pinning()`
   - `test_non_convex_sampling_success()`
   - `test_custom_bc_fn_mapping()`
   - `test_koch_snowflake_generation()`
@@ -401,6 +521,20 @@
   - `test_output_transform()`
   - `test_residual_connections()`
 
+## `tests/test_modern_integration.py`
+### Classes
+- **TestModernFeaturesIntegration**
+  - `test_train_with_sobolev_and_multiscale()`
+  - `test_sobolev_config_toggle()`
+
+## `tests/test_multiscale_fourier.py`
+### Classes
+- **TestMultiScaleFourier**
+  - `test_multiscale_initialization()`
+  - `test_mapping_dimension_logic()`
+  - `test_forward_pass_multiscale()`
+  - `test_fourier_features_disabled()`
+
 ## `tests/test_physics.py`
 ### Classes
 - **TestPhysics**
@@ -439,6 +573,13 @@
   - `test_poisson_residue_high_frequency_source()`
   - `test_adaptive_weight_warmup_bounds()`
   - `test_gradient_consistency_with_no_source()`
+
+## `tests/test_sobolev_physics.py`
+### Classes
+- **TestSobolevPhysics**
+  - `test_sobolev_loss_harmonic()`
+  - `test_sobolev_gradient_flow()`
+  - `test_sobolev_vs_standard_laplace()`
 
 ## `tests/test_solver.py`
 ### Classes

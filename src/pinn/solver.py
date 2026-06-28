@@ -1,14 +1,44 @@
 import torch
 import torch.optim as optim
 from src.pinn.model import PINN, ExactBoundaryAnsatz
-from src.pinn.physics import boundary_loss, poisson_loss, range_loss, boundary_gradient_loss, sobolev_laplace_loss, energy_loss
+from src.pinn.physics import (boundary_loss, poisson_loss, range_loss,
+                              boundary_gradient_loss, sobolev_laplace_loss,
+                              energy_loss, compute_gradient_stats,
+                              update_adaptive_weight)
 from src.core.data import generate_domain_data, generate_boundary_data, generate_adaptive_domain_data, set_seed, get_device
+
 
 def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
     """
-    Trains the PINN model using a two-stage approach (Adam + L-BFGS).
-    Includes self-adaptive weighting, weight warmup, and adaptive sampling.
-    Returns: (model, history)
+    Trains the PINN model using a two-stage approach: Adam then L-BFGS.
+
+    Two-Stage Rationale:
+    -------------------
+    Stage 1 (Adam): The PINN loss landscape is highly non-convex due to the
+    competition between the PDE residual and boundary constraints. Adam's
+    adaptive learning rates and momentum help navigate this landscape and
+    quickly find a reasonable initial guess. The learning rate is scheduled
+    via ReduceLROnPlateau for automatic annealing.
+
+    Stage 2 (L-BFGS): Once near a local minimum, L-BFGS provides
+    high-persistence second-order convergence. Its strong Wolfe line search
+    and curvature estimation allow it to "snap" to the exact physics solution
+    with tight tolerances, achieving lower loss than Adam can alone.
+
+    Self-Adaptive Weighting:
+    -----------------------
+    When enabled, lambda_bc is dynamically adjusted so that the max gradient
+    magnitude of the PDE loss is comparable to the mean gradient magnitude
+    of the BC loss. This prevents one loss term from dominating the update.
+
+    Adaptive Sampling (RAR):
+    -----------------------
+    Periodically re-samples collocation points, biasing the new batch toward
+    regions with the highest PDE residual (i.e., where the model is struggling
+    the most). This concentrates the network's capacity on hard-to-solve areas.
+
+    Returns:
+        (model, history) where history contains loss curves and weight dynamics.
     """
     # Default configuration
     default_config = {
@@ -95,31 +125,26 @@ def train(domain=None, bc_fn=None, f_fn=None, config=None) -> tuple:
         # Self-Adaptive Weighting (Only if not using Ansatz)
         if cfg["use_self_adaptive_weights"] and not cfg.get("use_ansatz", False) and epoch > 0 and epoch % cfg["adaptive_weight_every"] == 0:
             with torch.set_grad_enabled(True):
-                model.zero_grad()
-                l_pde = poisson_loss(model, x_domain, y_domain, f_fn=f_fn)
-                l_pde.backward(retain_graph=True)
-                grad_pde = [p.grad.abs().max() for p in model.parameters() if p.grad is not None]
-                max_grad_pde = torch.stack(grad_pde).max() if grad_pde else torch.tensor(1.0)
+                # Compute PDE gradient statistics
+                pde_stats = compute_gradient_stats(model, poisson_loss, x_domain, y_domain, f_fn)
+                max_grad_pde = pde_stats["max_grad"]
 
-                model.zero_grad()
+                # Compute BC gradient statistics
                 x_bc, y_bc, u_bc, n_bc = generate_boundary_data(n_points_b, device=device, domain=domain, bc_fn=bc_fn)
-                l_bc = boundary_loss(model, x_bc, y_bc, u_bc)
-                l_bc.backward(retain_graph=True)
-                grad_bc = [p.grad.abs().mean() for p in model.parameters() if p.grad is not None]
-                mean_grad_bc = torch.stack(grad_bc).mean() if grad_bc else torch.tensor(1.0)
-                
-                target_lambda_bc = torch.clamp(max_grad_pde / (mean_grad_bc + 1e-8), max=2000.0)
-                current_lambda_bc = 0.9 * current_lambda_bc + 0.1 * target_lambda_bc
-                
+                bc_stats = compute_gradient_stats(model, boundary_loss, x_bc, y_bc, u_bc)
+                mean_grad_bc = bc_stats["mean_grad"]
+
+                # Update weight via gradient balancing
+                current_lambda_bc = update_adaptive_weight(current_lambda_bc, max_grad_pde, mean_grad_bc)
+
+                # Range loss weight update (if active)
                 if current_lambda_range > 0:
-                    model.zero_grad()
                     coords_d = torch.stack([x_domain, y_domain], dim=1)
-                    l_r = range_loss(model(coords_d))
-                    l_r.backward(retain_graph=True)
-                    grad_r = [p.grad.abs().mean() for p in model.parameters() if p.grad is not None]
-                    mean_grad_r = torch.stack(grad_r).mean() if grad_r else torch.tensor(1.0)
-                    target_lambda_r = torch.clamp(max_grad_pde / (mean_grad_r + 1e-8), max=2000.0)
-                    current_lambda_range = 0.9 * current_lambda_range + 0.1 * target_lambda_r
+                    def range_loss_fn(m, c):
+                        return range_loss(m(c))
+                    range_stats = compute_gradient_stats(model, range_loss_fn, coords_d)
+                    mean_grad_r = range_stats["mean_grad"]
+                    current_lambda_range = update_adaptive_weight(current_lambda_range, max_grad_pde, mean_grad_r)
 
         # Resampling
         if cfg["use_adaptive_sampling"] and epoch % cfg["adaptive_every"] == 0:

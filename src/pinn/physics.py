@@ -173,3 +173,58 @@ def energy_loss(model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, area: 
         energy = energy + f * u.squeeze()
         
     return torch.mean(energy) * area
+
+
+def compute_gradient_stats(model: torch.nn.Module, loss_fn, *args) -> dict:
+    """
+    Computes gradient statistics (max and mean abs gradient norms) for a given loss.
+    This is used by the self-adaptive weighting mechanism to balance PDE and BC losses.
+    
+    Args:
+        model: The PINN model.
+        loss_fn: A callable that computes a scalar loss given model and *args.
+        *args: Arguments to pass to loss_fn.
+    
+    Returns:
+        A dict with 'max_grad' and 'mean_grad' tensors.
+    """
+    model.zero_grad()
+    loss = loss_fn(model, *args)
+    loss.backward(retain_graph=True)
+    grads = [p.grad.abs() for p in model.parameters() if p.grad is not None]
+    if not grads:
+        return {
+            "max_grad": torch.tensor(1.0, device=next(model.parameters()).device),
+            "mean_grad": torch.tensor(1.0, device=next(model.parameters()).device)
+        }
+    return {
+        "max_grad": torch.stack([g.max() for g in grads]).max(),
+        "mean_grad": torch.stack([g.mean() for g in grads]).mean()
+    }
+
+
+def update_adaptive_weight(current_weight: torch.Tensor,
+                           max_grad_reference: torch.Tensor,
+                           mean_grad_target: torch.Tensor,
+                           max_weight: float = 2000.0,
+                           ema_decay: float = 0.9) -> torch.Tensor:
+    """
+    Updates a self-adaptive loss weight using gradient magnitude balancing
+    with exponential moving average smoothing.
+    
+    The target weight is set so that the reference gradient's max norm 
+    matches the target gradient's mean norm, preventing one loss term
+    from dominating the optimization.
+    
+    Args:
+        current_weight: The current EMA-smoothed weight.
+        max_grad_reference: Max abs gradient of the reference loss (e.g., PDE).
+        mean_grad_target: Mean abs gradient of the target loss (e.g., BC).
+        max_weight: Upper clamp for the target weight.
+        ema_decay: Smoothing factor for the EMA update.
+    
+    Returns:
+        Updated weight tensor.
+    """
+    target = torch.clamp(max_grad_reference / (mean_grad_target + 1e-8), max=max_weight)
+    return ema_decay * current_weight + 0.1 * target

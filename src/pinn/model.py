@@ -103,6 +103,12 @@ class PINN(nn.Module):
                 layer.weight.uniform_(-np.sqrt(6 / num_input) / avg_omega, 
                                     np.sqrt(6 / num_input) / avg_omega)
                 layer.bias.uniform_(-1e-6, 1e-6)
+            # Also initialize the output layer with SIREN-appropriate scaling
+            # to prevent activation scaling collapse at the final projection
+            num_input_out = self.output_layer.weight.size(-1)
+            self.output_layer.weight.uniform_(-np.sqrt(6 / num_input_out) / avg_omega,
+                                              np.sqrt(6 / num_input_out) / avg_omega)
+            self.output_layer.bias.uniform_(-1e-6, 1e-6)
 
     def forward(self, x):
         # Apply Multi-Scale Fourier Mapping

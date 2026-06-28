@@ -145,6 +145,18 @@ class ExactBoundaryAnsatz(nn.Module):
     """
     Wraps a core network to strictly enforce boundary conditions using an Ansatz.
     u(x) = G(x) + D(x) * N_theta(x)
+
+    Currently only supports bc_mode='nested', which assumes exactly two boundaries:
+        - poly_idx=0 (outer boundary), where u=0
+        - poly_idx=1 (inner hole), where u=1
+    This is a limitation — generalizing to arbitrary numbers of boundaries
+    would require constructing G(x) as a weighted sum of multiple distance
+    functions.
+
+    Args:
+        core_model: The PINN network to wrap.
+        domain: A PolygonDomain with exactly one hole.
+        bc_mode: Must be 'nested'.
     """
     def __init__(self, core_model: PINN, domain, bc_mode='nested'):
         super().__init__()

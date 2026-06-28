@@ -128,7 +128,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PINN Laplace Solver Entry Point")
     parser.add_argument('--mode', type=str, choices=['snowflake', 'nested', 'compare'], default='nested',
                         help="Execution mode (default: nested)")
+    parser.add_argument('--output-dir', type=str, default='.',
+                        help="Directory to save output plots (default: current directory)")
     args = parser.parse_args()
+
+    # Ensure output directory exists and switch to it
+    os.makedirs(args.output_dir, exist_ok=True)
+    original_dir = os.getcwd()
+    os.chdir(args.output_dir)
+    print(f"Output directory: {os.path.abspath(args.output_dir)}")
 
     # Stabilized configuration with Vertex Pinning and Reduced Spectral Ringing
     config = {
